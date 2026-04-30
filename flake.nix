@@ -1,0 +1,41 @@
+{
+  description = "A terminal UI for managing USB devices via usbguard.";
+
+  inputs = {nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";};
+
+  outputs = {
+    self,
+    nixpkgs,
+  }: let
+    supportedSystems = ["x86_64-linux" "aarch64-linux"];
+
+    forAllSystems = f:
+      nixpkgs.lib.genAttrs supportedSystems
+      (system: f system (import nixpkgs {inherit system;}));
+
+    pname = "usbguard-tui";
+    version = "1.0.0";
+
+    ldflags = ["-s" "-w"];
+  in {
+    packages = forAllSystems (system: pkgs: {
+      "${pname}" = pkgs.buildGoModule {
+        inherit pname version ldflags;
+
+        src = ./.;
+        outputs = ["out"];
+
+        vendorHash = "sha256-SMhllO87YlmySHroKfPq1pHb67CwHaZ3XMp3t983etc=";
+
+        meta = with pkgs.lib; {
+          description = "A terminal UI for managing USB devices via usbguard.";
+          homepage = "https://github.com/anotherhadi/usbguard-tui";
+          platforms = platforms.unix;
+        };
+      };
+    });
+
+    defaultPackage =
+      forAllSystems (system: pkgs: self.packages.${system}.${pname});
+  };
+}
