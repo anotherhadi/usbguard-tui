@@ -2,8 +2,12 @@
 ▖▖▄▖▄ ▄▖       ▌  ▄▖▖▖▄▖
 ▌▌▚ ▙▘▌ ▌▌▀▌▛▘▛▌  ▐ ▌▌▐
 ▙▌▄▌▙▘▙▌▙▌█▌▌ ▙▌  ▐ ▙▌▟▖
-
 ```
+
+[![Go Version](https://img.shields.io/github/go-mod/go-version/anotherhadi/usbguard-tui)](go.mod)
+[![Release](https://img.shields.io/github/v/release/anotherhadi/usbguard-tui)](https://github.com/anotherhadi/usbguard-tui/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/anotherhadi/usbguard-tui)](https://goreportcard.com/report/github.com/anotherhadi/usbguard-tui)
 
 # USBGuard TUI
 
