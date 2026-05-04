@@ -1,28 +1,30 @@
 package ui
 
 import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
-	"github.com/charmbracelet/lipgloss"
 )
 
 var (
-	colorAllowed          = lipgloss.Color("28")
-	colorAllowedSelected  = lipgloss.Color("42")
-	colorBlocked          = lipgloss.Color("124")
-	colorBlockedSelected  = lipgloss.Color("196")
-	colorRejected         = lipgloss.Color("130")
-	colorRejectedSelected = lipgloss.Color("214")
-	colorMuted            = lipgloss.Color("240")
-	colorAccent           = lipgloss.Color("99")
+	colorAllowed          color.Color = lipgloss.Color("28")
+	colorAllowedSelected  color.Color = lipgloss.Color("42")
+	colorBlocked          color.Color = lipgloss.Color("124")
+	colorBlockedSelected  color.Color = lipgloss.Color("196")
+	colorRejected         color.Color = lipgloss.Color("130")
+	colorRejectedSelected color.Color = lipgloss.Color("214")
+	colorMuted            color.Color = lipgloss.Color("240")
+	colorAccent           color.Color = lipgloss.Color("99")
 )
 
-var statusColors = map[guard.Status]lipgloss.Color{
+var statusColors = map[guard.Status]color.Color{
 	guard.Allowed:  colorAllowed,
 	guard.Blocked:  colorBlocked,
 	guard.Rejected: colorRejected,
 }
 
-var statusColorsSelected = map[guard.Status]lipgloss.Color{
+var statusColorsSelected = map[guard.Status]color.Color{
 	guard.Allowed:  colorAllowedSelected,
 	guard.Blocked:  colorBlockedSelected,
 	guard.Rejected: colorRejectedSelected,

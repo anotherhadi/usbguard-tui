@@ -2,11 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"io"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
@@ -25,18 +26,18 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 
 	selected := index == m.Index()
 
-	var color lipgloss.Color
+	var clr color.Color
 	if selected {
 		var ok bool
-		color, ok = statusColorsSelected[dev.Status]
+		clr, ok = statusColorsSelected[dev.Status]
 		if !ok {
-			color = colorMuted
+			clr = colorMuted
 		}
 	} else {
 		var ok bool
-		color, ok = statusColors[dev.Status]
+		clr, ok = statusColors[dev.Status]
 		if !ok {
-			color = colorMuted
+			clr = colorMuted
 		}
 	}
 
@@ -45,7 +46,7 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		nameStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
 			BorderForeground(colorAccent).
-			Foreground(color).
+			Foreground(clr).
 			Bold(true).
 			PaddingLeft(1)
 		descStyle = lipgloss.NewStyle().
@@ -54,7 +55,7 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 			Foreground(colorMuted).
 			PaddingLeft(1)
 	} else {
-		nameStyle = lipgloss.NewStyle().Foreground(color).PaddingLeft(2)
+		nameStyle = lipgloss.NewStyle().Foreground(clr).PaddingLeft(2)
 		descStyle = lipgloss.NewStyle().Foreground(colorMuted).PaddingLeft(2)
 	}
 
@@ -89,11 +90,11 @@ func (d actionDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		return
 	}
 	if index == m.Index() {
-		color, ok := statusColorsSelected[a.status]
+		clr, ok := statusColorsSelected[a.status]
 		if !ok {
-			color = colorAccent
+			clr = colorAccent
 		}
-		fmt.Fprintf(w, "  %s", lipgloss.NewStyle().Bold(true).Foreground(color).Render("> "+a.label))
+		fmt.Fprintf(w, "  %s", lipgloss.NewStyle().Bold(true).Foreground(clr).Render("> "+a.label))
 	} else {
 		fmt.Fprintf(w, "    %s", a.label)
 	}

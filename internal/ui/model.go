@@ -4,12 +4,13 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type state int
@@ -45,17 +46,23 @@ func New() Model {
 	l.SetShowStatusBar(true)
 	l.SetShowTitle(false)
 	l.DisableQuitKeybindings()
-	// free j/k for our shortcuts
 	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up"))
 	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down"))
-	l.FilterInput.PromptStyle = lipgloss.NewStyle().Foreground(colorAccent)
-	l.FilterInput.Cursor.Style = lipgloss.NewStyle().Foreground(colorAccent)
+
+	l.Styles = list.DefaultStyles(true)
+	filterStyles := textinput.DefaultStyles(true)
+	filterStyles.Focused.Prompt = filterStyles.Focused.Prompt.Foreground(colorAccent)
+	filterStyles.Blurred.Prompt = filterStyles.Blurred.Prompt.Foreground(colorAccent)
+	l.Styles.Filter = filterStyles
+
+	h := help.New()
+	h.Styles = help.DefaultStyles(true)
 
 	return Model{
 		state:      stateList,
 		list:       l,
 		actionList: makeActionList(),
-		help:       help.New(),
+		help:       h,
 	}
 }
 
@@ -87,7 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.help.Width = msg.Width
+		m.help.SetWidth(msg.Width)
 		m.list.SetSize(msg.Width, m.listHeight())
 		m.updateActionListSize()
 		return m, nil
@@ -124,11 +131,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, fetchDevices
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.state == statePopup {
 			return m.updatePopup(msg)
 		}
 		return m.updateList(msg)
+
+	case tea.MouseClickMsg:
+		if m.state == statePopup {
+			var cmd tea.Cmd
+			m.actionList, cmd = m.actionList.Update(msg)
+			return m, cmd
+		}
+
+	case tea.MouseWheelMsg:
+		if m.state == statePopup {
+			var cmd tea.Cmd
+			m.actionList, cmd = m.actionList.Update(msg)
+			return m, cmd
+		}
 	}
 
 	if m.state == stateList {
@@ -140,7 +161,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
@@ -184,7 +205,7 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) updatePopup(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updatePopup(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case key.Matches(msg, cancelKey):
 		m.state = stateList
@@ -201,7 +222,16 @@ func (m Model) updatePopup(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() string {
+func (m Model) View() tea.View {
+	return tea.View{
+		Content:     m.renderContent(),
+		AltScreen:   true,
+		WindowTitle: "USBGuard TUI",
+		MouseMode:   tea.MouseModeCellMotion,
+	}
+}
+
+func (m Model) renderContent() string {
 	header := m.renderHeader()
 	notice := m.renderNotice()
 	listView := strings.TrimRight(m.list.View(), "\n")
@@ -238,7 +268,7 @@ func (m Model) renderActionSelect() string {
 	color := statusColors[dev.Status]
 	innerW := m.actionListInnerWidth()
 
-	title := popupTitleStyle.Copy().Foreground(color).Width(innerW).Render(dev.Name)
+	title := popupTitleStyle.Foreground(color).Width(innerW).Render(dev.Name)
 	hint := lipgloss.NewStyle().Foreground(colorMuted).Width(innerW).Render("↑↓ navigate  enter confirm  esc cancel")
 
 	content := strings.Join([]string{title, m.actionList.View(), "", hint}, "\n")
