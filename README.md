@@ -17,7 +17,7 @@ USBGuard is a software framework for implementing a USB device authorization pol
 
 <img alt="USBGuard-tui demo" src="./.github/assets/demo.gif" width="600" />
 
-Built with [bubbletea](https://github.com/charmbracelet/bubbletea) & Goland!
+Built with [bubbletea](https://github.com/charmbracelet/bubbletea) & Golang!
 
 ## Requirements
 
