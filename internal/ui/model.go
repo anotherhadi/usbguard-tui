@@ -146,10 +146,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseWheelMsg:
 		if m.state == statePopup {
-			var cmd tea.Cmd
-			m.actionList, cmd = m.actionList.Update(msg)
-			return m, cmd
+			switch msg.Button {
+			case tea.MouseWheelUp:
+				m.actionList.CursorUp()
+			case tea.MouseWheelDown:
+				m.actionList.CursorDown()
+			}
+		} else {
+			switch msg.Button {
+			case tea.MouseWheelUp:
+				m.list.CursorUp()
+			case tea.MouseWheelDown:
+				m.list.CursorDown()
+			}
 		}
+		return m, nil
 	}
 
 	if m.state == stateList {
