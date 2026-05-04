@@ -15,6 +15,8 @@ A terminal UI for managing USB devices via [usbguard](https://usbguard.github.io
 
 USBGuard is a software framework for implementing a USB device authorization policy (allowlisting/blocklisting). It protects your system against rogue USB devices by scanning them and checking their parameters against a set of rules.
 
+<img alt="USBGuard-tui demo" src="./.github/assets/demo.gif" width="600" />
+
 Built with [bubbletea](https://github.com/charmbracelet/bubbletea) & Goland!
 
 ## Requirements
