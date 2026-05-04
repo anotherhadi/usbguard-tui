@@ -16,7 +16,7 @@
     pname = "usbguard-tui";
     version = "1.0.0";
 
-    ldflags = ["-s" "-w"];
+    ldflags = ["-s" "-w" "-X main.version=${version}"];
   in {
     packages = forAllSystems (system: pkgs: {
       "${pname}" = pkgs.buildGoModule {
