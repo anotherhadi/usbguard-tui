@@ -14,7 +14,7 @@
       (system: f system (import nixpkgs {inherit system;}));
 
     pname = "usbguard-tui";
-    version = "1.0.0";
+    version = "1.0.1";
 
     ldflags = ["-s" "-w" "-X main.version=${version}"];
   in {
