@@ -20,6 +20,7 @@ func ListDevices() ([]Device, error) {
 	if err != nil {
 		return nil, wrapExecError(err)
 	}
+	rules := listRules()
 	var devices []Device
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if line == "" {
@@ -27,10 +28,29 @@ func ListDevices() ([]Device, error) {
 		}
 		d, err := parseLine(line)
 		if err == nil {
+			d.Permanent = rules[d.VidPid] == d.Status
 			devices = append(devices, d)
 		}
 	}
 	return devices, nil
+}
+
+func listRules() map[string]Status {
+	out, err := exec.Command("usbguard", "list-rules").Output()
+	if err != nil {
+		return nil
+	}
+	rules := make(map[string]Status)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if line == "" {
+			continue
+		}
+		d, err := parseLine(line)
+		if err == nil {
+			rules[d.VidPid] = d.Status
+		}
+	}
+	return rules
 }
 
 func AllowDevice(id int, permanent bool) error  { return applyPolicy("allow-device", id, permanent) }

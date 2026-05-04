@@ -59,9 +59,13 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		descStyle = lipgloss.NewStyle().Foreground(colorMuted).PaddingLeft(2)
 	}
 
+	permIndicator := "○ tmp"
+	if dev.Permanent {
+		permIndicator = "● perm"
+	}
 	fmt.Fprintf(w, "%s\n%s",
 		nameStyle.Render(dev.Name),
-		descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s", dev.ID, dev.VidPid, string(dev.Status))),
+		descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s  %s", dev.ID, dev.VidPid, string(dev.Status), permIndicator)),
 	)
 }
 

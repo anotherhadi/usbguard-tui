@@ -16,10 +16,11 @@ const (
 )
 
 type Device struct {
-	ID     int
-	Name   string
-	Status Status
-	VidPid string
+	ID        int
+	Name      string
+	Status    Status
+	VidPid    string
+	Permanent bool
 }
 
 func (d Device) Title() string       { return d.Name }
