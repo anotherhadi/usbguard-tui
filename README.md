@@ -19,6 +19,15 @@ USBGuard is a software framework for implementing a USB device authorization pol
 
 Built with [bubbletea](https://github.com/charmbracelet/bubbletea) & Golang!
 
+## Features
+
+- List all connected USB devices with their current status (allowed, blocked, rejected)
+- Allow, block, or reject devices: temporarily or permanently
+- Action popup with mouse support for quick device management
+- Filter devices by name with `/`
+- Auto-refresh
+- Keyboard shortcuts for all actions (`a`/`A`, `b`/`B`, `e`/`E`)
+
 ## Requirements
 
 - usbguard installed and the daemon running
