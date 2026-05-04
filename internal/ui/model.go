@@ -47,7 +47,7 @@ func New() Model {
 	l.SetShowTitle(false)
 	l.DisableQuitKeybindings()
 	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up"))
-	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down"), key.WithHelp("↓", "down"))
+	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down"))
 
 	l.Styles = list.DefaultStyles(true)
 	filterStyles := textinput.DefaultStyles(true)
