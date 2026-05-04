@@ -2,6 +2,7 @@ package guard
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -84,6 +85,42 @@ func wrapExecError(err error) error {
 		return classifyError(string(exitErr.Stderr))
 	}
 	return err
+}
+
+func IsRulesManaged() bool {
+	out, err := exec.Command("systemctl", "cat", "usbguard").Output()
+	if err != nil {
+		return false
+	}
+	configPath := extractConfigPath(string(out))
+	if configPath == "" {
+		return false
+	}
+	ruleFile := parseRuleFilePath(configPath)
+	return strings.HasPrefix(ruleFile, "/nix/store/")
+}
+
+func extractConfigPath(s string) string {
+	fields := strings.Fields(s)
+	for i, f := range fields {
+		if f == "-c" && i+1 < len(fields) {
+			return fields[i+1]
+		}
+	}
+	return ""
+}
+
+func parseRuleFilePath(configPath string) string {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if after, ok := strings.CutPrefix(line, "RuleFile="); ok {
+			return strings.TrimSpace(after)
+		}
+	}
+	return ""
 }
 
 func classifyError(output string) error {

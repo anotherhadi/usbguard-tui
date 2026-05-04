@@ -37,6 +37,7 @@ type Model struct {
 	height       int
 	notice       string
 	selectedDev  *guard.Device
+	rulesManaged bool
 }
 
 func New() Model {
@@ -58,24 +59,42 @@ func New() Model {
 	h := help.New()
 	h.Styles = help.DefaultStyles(true)
 
+	rulesManaged := guard.IsRulesManaged()
+	notice := ""
+	if rulesManaged {
+		notice = "Rules managed by NixOS config: permanent actions not available."
+		listKeys.AllowPerm.SetEnabled(false)
+		listKeys.BlockPerm.SetEnabled(false)
+		listKeys.RejectPerm.SetEnabled(false)
+	}
+
 	return Model{
-		state:      stateList,
-		list:       l,
-		actionList: makeActionList(),
-		help:       h,
+		state:        stateList,
+		list:         l,
+		actionList:   makeActionList(rulesManaged),
+		help:         h,
+		rulesManaged: rulesManaged,
+		notice:       notice,
 	}
 }
 
-func makeActionList() list.Model {
+func makeActionList(rulesManaged bool) list.Model {
 	items := []list.Item{
 		actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
-		actionItem{"allow (permanent)", guard.AllowDevice, true, guard.Allowed},
 		actionItem{"block", guard.BlockDevice, false, guard.Blocked},
-		actionItem{"block (permanent)", guard.BlockDevice, true, guard.Blocked},
 		actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
-		actionItem{"reject (permanent)", guard.RejectDevice, true, guard.Rejected},
 	}
-	l := list.New(items, actionDelegate{}, 24, 6)
+	if !rulesManaged {
+		items = []list.Item{
+			actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
+			actionItem{"allow (permanent)", guard.AllowDevice, true, guard.Allowed},
+			actionItem{"block", guard.BlockDevice, false, guard.Blocked},
+			actionItem{"block (permanent)", guard.BlockDevice, true, guard.Blocked},
+			actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
+			actionItem{"reject (permanent)", guard.RejectDevice, true, guard.Rejected},
+		}
+	}
+	l := list.New(items, actionDelegate{}, 24, len(items))
 	l.SetShowHelp(false)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
@@ -120,14 +139,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			switch msg.err {
 			case guard.ErrReadOnly:
-				m.notice = "Read-only rules: applied temporarily. Add the rule to your config for persistence."
+				m.notice = "Rules file is not writable: permanent changes are not supported."
 			case guard.ErrPermission:
 				m.notice = "Permission denied. Run with appropriate privileges."
 			default:
 				m.notice = msg.err.Error()
 			}
 		} else {
-			m.notice = ""
+			m.notice = m.defaultNotice()
 		}
 		return m, fetchDevices
 
@@ -182,7 +201,7 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, listKeys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, listKeys.Refresh):
-			m.notice = ""
+			m.notice = m.defaultNotice()
 			return m, tea.Batch(fetchDevices, fetchDaemonStatus)
 		case key.Matches(msg, listKeys.Help):
 			m.help.ShowAll = !m.help.ShowAll
@@ -199,15 +218,15 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		case id >= 0 && key.Matches(msg, listKeys.Allow):
 			return m, doAction(id, guard.AllowDevice, false)
-		case id >= 0 && key.Matches(msg, listKeys.AllowPerm):
+		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.AllowPerm):
 			return m, doAction(id, guard.AllowDevice, true)
 		case id >= 0 && key.Matches(msg, listKeys.Block):
 			return m, doAction(id, guard.BlockDevice, false)
-		case id >= 0 && key.Matches(msg, listKeys.BlockPerm):
+		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.BlockPerm):
 			return m, doAction(id, guard.BlockDevice, true)
 		case id >= 0 && key.Matches(msg, listKeys.Reject):
 			return m, doAction(id, guard.RejectDevice, false)
-		case id >= 0 && key.Matches(msg, listKeys.RejectPerm):
+		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.RejectPerm):
 			return m, doAction(id, guard.RejectDevice, true)
 		}
 	}
@@ -301,12 +320,26 @@ func (m Model) actionListInnerWidth() int {
 	return m.popupOuterWidth() - 8 // border(2) + padding_h(6)
 }
 
+func (m Model) defaultNotice() string {
+	if m.rulesManaged {
+		return "Rules managed by NixOS config: permanent actions not available."
+	}
+	return ""
+}
+
+func (m Model) actionItemCount() int {
+	if m.rulesManaged {
+		return 3
+	}
+	return 6
+}
+
 // updateActionListSize sizes the action list and toggles pagination based on available space.
 // When there is enough room for all items: pagination is hidden and height is set exactly,
 // avoiding the phantom line that bubbles/list reserves when showPagination=true.
 // When space is limited: pagination is shown naturally by bubbles/list.
 func (m *Model) updateActionListSize() {
-	const items = 6
+	items := m.actionItemCount()
 	innerW := m.actionListInnerWidth()
 	// popup overhead: border(2) + padding_v(2) + title(1) + blank(1) + hint(1) = 7
 	available := m.height - 7 - 2 // 2 lines margin
