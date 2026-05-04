@@ -18,8 +18,8 @@
 
     ldflags = ["-s" "-w" "-X main.version=${version}"];
   in {
-    packages = forAllSystems (system: pkgs: {
-      "${pname}" = pkgs.buildGoModule {
+    packages = forAllSystems (system: pkgs: let
+      pkg = pkgs.buildGoModule {
         inherit pname version ldflags;
 
         src = ./.;
@@ -33,9 +33,9 @@
           platforms = platforms.unix;
         };
       };
+    in {
+      "${pname}" = pkg;
+      default = pkg;
     });
-
-    defaultPackage =
-      forAllSystems (system: pkgs: self.packages.${system}.${pname});
   };
 }
