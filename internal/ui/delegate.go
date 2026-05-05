@@ -14,8 +14,8 @@ import (
 // deviceDelegate renders device list items with status colors.
 type deviceDelegate struct{}
 
-func (d deviceDelegate) Height() int                              { return 2 }
-func (d deviceDelegate) Spacing() int                             { return 0 }
+func (d deviceDelegate) Height() int                             { return 2 }
+func (d deviceDelegate) Spacing() int                            { return 0 }
 func (d deviceDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -84,8 +84,8 @@ func (a actionItem) FilterValue() string { return a.label }
 // actionDelegate renders single-line action items.
 type actionDelegate struct{}
 
-func (d actionDelegate) Height() int                              { return 1 }
-func (d actionDelegate) Spacing() int                             { return 0 }
+func (d actionDelegate) Height() int                             { return 1 }
+func (d actionDelegate) Spacing() int                            { return 0 }
 func (d actionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d actionDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
