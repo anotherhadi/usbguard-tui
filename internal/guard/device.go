@@ -20,6 +20,7 @@ type Device struct {
 	Name      string
 	Status    Status
 	VidPid    string
+	Hash      string
 	Permanent bool
 }
 
@@ -57,6 +58,7 @@ func parseLine(line string) (Device, error) {
 		Name:   name,
 		Status: status,
 		VidPid: extractUnquoted(rest, "id"),
+		Hash:   extractField(rest, "hash"),
 	}, nil
 }
 
