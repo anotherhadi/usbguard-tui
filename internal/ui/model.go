@@ -79,12 +79,14 @@ func New() Model {
 }
 
 func makeActionList(rulesManaged bool) list.Model {
-	items := []list.Item{
-		actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
-		actionItem{"block", guard.BlockDevice, false, guard.Blocked},
-		actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
-	}
-	if !rulesManaged {
+	var items []list.Item
+	if rulesManaged {
+		items = []list.Item{
+			actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
+			actionItem{"block", guard.BlockDevice, false, guard.Blocked},
+			actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
+		}
+	} else {
 		items = []list.Item{
 			actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
 			actionItem{"allow (permanent)", guard.AllowDevice, true, guard.Allowed},
@@ -164,22 +166,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.MouseWheelMsg:
-		if m.state == statePopup {
-			switch msg.Button {
-			case tea.MouseWheelUp:
-				m.actionList.CursorUp()
-			case tea.MouseWheelDown:
-				m.actionList.CursorDown()
-			}
-		} else {
-			switch msg.Button {
-			case tea.MouseWheelUp:
-				m.list.CursorUp()
-			case tea.MouseWheelDown:
-				m.list.CursorDown()
-			}
-		}
-		return m, nil
+		return m.updateMouseWheel(msg)
 	}
 
 	if m.state == stateList {
@@ -216,18 +203,11 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				m.state = statePopup
 				return m, nil
 			}
-		case id >= 0 && key.Matches(msg, listKeys.Allow):
-			return m, doAction(id, guard.AllowDevice, false)
-		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.AllowPerm):
-			return m, doAction(id, guard.AllowDevice, true)
-		case id >= 0 && key.Matches(msg, listKeys.Block):
-			return m, doAction(id, guard.BlockDevice, false)
-		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.BlockPerm):
-			return m, doAction(id, guard.BlockDevice, true)
-		case id >= 0 && key.Matches(msg, listKeys.Reject):
-			return m, doAction(id, guard.RejectDevice, false)
-		case id >= 0 && !m.rulesManaged && key.Matches(msg, listKeys.RejectPerm):
-			return m, doAction(id, guard.RejectDevice, true)
+		}
+		if id >= 0 {
+			if cmd := m.deviceActionCmd(msg, id); cmd != nil {
+				return m, cmd
+			}
 		}
 	}
 	var cmd tea.Cmd
@@ -390,4 +370,47 @@ func doAction(id int, fn func(int, bool) error, permanent bool) tea.Cmd {
 	return func() tea.Msg {
 		return actionMsg{err: fn(id, permanent)}
 	}
+}
+
+type actionBinding struct {
+	binding       key.Binding
+	fn            func(int, bool) error
+	perm          bool
+	needsWritable bool
+}
+
+var deviceActionBindings = []actionBinding{
+	{listKeys.Allow, guard.AllowDevice, false, false},
+	{listKeys.AllowPerm, guard.AllowDevice, true, true},
+	{listKeys.Block, guard.BlockDevice, false, false},
+	{listKeys.BlockPerm, guard.BlockDevice, true, true},
+	{listKeys.Reject, guard.RejectDevice, false, false},
+	{listKeys.RejectPerm, guard.RejectDevice, true, true},
+}
+
+func (m Model) deviceActionCmd(msg tea.KeyPressMsg, id int) tea.Cmd {
+	for _, b := range deviceActionBindings {
+		if (!b.needsWritable || !m.rulesManaged) && key.Matches(msg, b.binding) {
+			return doAction(id, b.fn, b.perm)
+		}
+	}
+	return nil
+}
+
+func (m Model) updateMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		if m.state == statePopup {
+			m.actionList.CursorUp()
+		} else {
+			m.list.CursorUp()
+		}
+	case tea.MouseWheelDown:
+		if m.state == statePopup {
+			m.actionList.CursorDown()
+		} else {
+			m.list.CursorDown()
+		}
+	}
+	return m, nil
 }

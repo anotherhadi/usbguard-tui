@@ -48,7 +48,5 @@ var (
 
 	popupTitleStyle = lipgloss.NewStyle().Bold(true).MarginBottom(1)
 
-	keyHintStyle = lipgloss.NewStyle().Foreground(colorAccent).Bold(true)
-	warnStyle    = lipgloss.NewStyle().Foreground(colorRejected)
-	errStyle     = lipgloss.NewStyle().Foreground(colorBlocked).Bold(true)
+	warnStyle = lipgloss.NewStyle().Foreground(colorRejected)
 )

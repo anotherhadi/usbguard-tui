@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"io"
 
 	"charm.land/bubbles/v2/list"
@@ -11,7 +10,6 @@ import (
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
-// deviceDelegate renders device list items with status colors.
 type deviceDelegate struct{}
 
 func (d deviceDelegate) Height() int                             { return 2 }
@@ -26,19 +24,13 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 
 	selected := index == m.Index()
 
-	var clr color.Color
+	colorMap := statusColors
 	if selected {
-		var ok bool
-		clr, ok = statusColorsSelected[dev.Status]
-		if !ok {
-			clr = colorMuted
-		}
-	} else {
-		var ok bool
-		clr, ok = statusColors[dev.Status]
-		if !ok {
-			clr = colorMuted
-		}
+		colorMap = statusColorsSelected
+	}
+	clr, ok := colorMap[dev.Status]
+	if !ok {
+		clr = colorMuted
 	}
 
 	var nameStyle, descStyle lipgloss.Style
@@ -69,7 +61,6 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	)
 }
 
-// actionItem represents a device policy action in the select popup.
 type actionItem struct {
 	label     string
 	fn        func(int, bool) error
@@ -81,7 +72,6 @@ func (a actionItem) Title() string       { return a.label }
 func (a actionItem) Description() string { return "" }
 func (a actionItem) FilterValue() string { return a.label }
 
-// actionDelegate renders single-line action items.
 type actionDelegate struct{}
 
 func (d actionDelegate) Height() int                             { return 1 }
