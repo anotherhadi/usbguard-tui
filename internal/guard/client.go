@@ -29,7 +29,7 @@ func ListDevices() ([]Device, error) {
 		}
 		d, err := parseLine(line)
 		if err == nil {
-			d.Permanent = rules[d.VidPid] == d.Status
+			d.Permanent = rules[d.Hash] == d.Status
 			devices = append(devices, d)
 		}
 	}
@@ -47,8 +47,8 @@ func listRules() map[string]Status {
 			continue
 		}
 		d, err := parseLine(line)
-		if err == nil {
-			rules[d.VidPid] = d.Status
+		if err == nil && d.Hash != "" {
+			rules[d.Hash] = d.Status
 		}
 	}
 	return rules
