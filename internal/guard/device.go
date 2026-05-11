@@ -76,6 +76,10 @@ func extractField(rule, field string) string {
 	return rest[:end]
 }
 
+func NixOSRule(dev Device, status Status) string {
+	return fmt.Sprintf("%s id %s name \"%s\"", status, dev.VidPid, dev.Name)
+}
+
 func extractUnquoted(rule, field string) string {
 	prefix := field + " "
 	idx := strings.Index(rule, prefix)

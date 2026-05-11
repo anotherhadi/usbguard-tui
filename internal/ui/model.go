@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ type (
 	devicesMsg      []guard.Device
 	daemonStatusMsg string
 	actionMsg       struct{ err error }
+	nixRuleMsg      struct{ rule string }
 )
 
 type Model struct {
@@ -38,7 +40,10 @@ type Model struct {
 	notice       string
 	selectedDev  *guard.Device
 	rulesManaged bool
+	pendingRules []string
 }
+
+func (m Model) PendingRules() []string { return m.pendingRules }
 
 func New() Model {
 	l := list.New(nil, deviceDelegate{}, 0, 0)
@@ -62,7 +67,7 @@ func New() Model {
 	rulesManaged := guard.IsRulesManaged()
 	notice := ""
 	if rulesManaged {
-		notice = "Rules managed by NixOS config: permanent actions not available."
+		notice = "Rules managed by NixOS config: permanent actions will print NixOS rules on exit."
 		listKeys.AllowPerm.SetEnabled(false)
 		listKeys.BlockPerm.SetEnabled(false)
 		listKeys.RejectPerm.SetEnabled(false)
@@ -82,18 +87,21 @@ func makeActionList(rulesManaged bool) list.Model {
 	var items []list.Item
 	if rulesManaged {
 		items = []list.Item{
-			actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
-			actionItem{"block", guard.BlockDevice, false, guard.Blocked},
-			actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
+			actionItem{"allow", guard.AllowDevice, false, guard.Allowed, false},
+			actionItem{"allow (perm)", nil, true, guard.Allowed, true},
+			actionItem{"block", guard.BlockDevice, false, guard.Blocked, false},
+			actionItem{"block (perm)", nil, true, guard.Blocked, true},
+			actionItem{"reject", guard.RejectDevice, false, guard.Rejected, false},
+			actionItem{"reject (perm)", nil, true, guard.Rejected, true},
 		}
 	} else {
 		items = []list.Item{
-			actionItem{"allow", guard.AllowDevice, false, guard.Allowed},
-			actionItem{"allow (permanent)", guard.AllowDevice, true, guard.Allowed},
-			actionItem{"block", guard.BlockDevice, false, guard.Blocked},
-			actionItem{"block (permanent)", guard.BlockDevice, true, guard.Blocked},
-			actionItem{"reject", guard.RejectDevice, false, guard.Rejected},
-			actionItem{"reject (permanent)", guard.RejectDevice, true, guard.Rejected},
+			actionItem{"allow", guard.AllowDevice, false, guard.Allowed, false},
+			actionItem{"allow (permanent)", guard.AllowDevice, true, guard.Allowed, false},
+			actionItem{"block", guard.BlockDevice, false, guard.Blocked, false},
+			actionItem{"block (permanent)", guard.BlockDevice, true, guard.Blocked, false},
+			actionItem{"reject", guard.RejectDevice, false, guard.Rejected, false},
+			actionItem{"reject (permanent)", guard.RejectDevice, true, guard.Rejected, false},
 		}
 	}
 	l := list.New(items, actionDelegate{}, 24, len(items))
@@ -133,6 +141,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case daemonStatusMsg:
 		m.daemonStatus = string(msg)
+		return m, nil
+
+	case nixRuleMsg:
+		m.state = stateList
+		m.selectedDev = nil
+		m.pendingRules = append(m.pendingRules, msg.rule)
+		count := len(m.pendingRules)
+		if count == 1 {
+			m.notice = "1 NixOS rule queued (printed on exit)"
+		} else {
+			m.notice = fmt.Sprintf("%d NixOS rules queued (printed on exit)", count)
+		}
 		return m, nil
 
 	case actionMsg:
@@ -224,6 +244,10 @@ func (m Model) updatePopup(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, listKeys.Open):
 		if item := m.actionList.SelectedItem(); item != nil {
 			a := item.(actionItem)
+			if a.nixos && m.selectedDev != nil {
+				rule := guard.NixOSRule(*m.selectedDev, a.status)
+				return m, func() tea.Msg { return nixRuleMsg{rule: rule} }
+			}
 			return m, doAction(m.selectedDev.ID, a.fn, a.permanent)
 		}
 	}
@@ -281,8 +305,13 @@ func (m Model) renderActionSelect() string {
 	title := popupTitleStyle.Foreground(color).Width(innerW).Render(dev.Name)
 	hint := lipgloss.NewStyle().Foreground(colorMuted).Width(innerW).Render("↑↓ navigate  enter confirm  esc cancel")
 
-	content := strings.Join([]string{title, m.actionList.View(), "", hint}, "\n")
-	return popupStyle.Width(innerW).Render(content)
+	parts := []string{title, m.actionList.View(), ""}
+	if m.rulesManaged {
+		nixosHint := lipgloss.NewStyle().Foreground(colorMuted).Width(innerW).Render("[NixOS: perm rules printed on exit]")
+		parts = append(parts, nixosHint)
+	}
+	parts = append(parts, hint)
+	return popupStyle.Width(innerW).Render(strings.Join(parts, "\n"))
 }
 
 func (m Model) popupOuterWidth() int {
@@ -302,15 +331,12 @@ func (m Model) actionListInnerWidth() int {
 
 func (m Model) defaultNotice() string {
 	if m.rulesManaged {
-		return "Rules managed by NixOS config: permanent actions not available."
+		return "Rules managed by NixOS config: permanent actions will print NixOS rules on exit."
 	}
 	return ""
 }
 
 func (m Model) actionItemCount() int {
-	if m.rulesManaged {
-		return 3
-	}
 	return 6
 }
 
@@ -321,8 +347,12 @@ func (m Model) actionItemCount() int {
 func (m *Model) updateActionListSize() {
 	items := m.actionItemCount()
 	innerW := m.actionListInnerWidth()
-	// popup overhead: border(2) + padding_v(2) + title(1) + blank(1) + hint(1) = 7
-	available := m.height - 7 - 2 // 2 lines margin
+	// popup overhead: border(2) + padding_v(2) + title(1) + blank(1) + hint(1) = 7; +1 for NixOS footer
+	overhead := 7
+	if m.rulesManaged {
+		overhead = 8
+	}
+	available := m.height - overhead - 2 // 2 lines margin
 	if available >= items {
 		m.actionList.SetShowPagination(false)
 		m.actionList.SetSize(innerW, items)

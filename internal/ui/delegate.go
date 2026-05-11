@@ -66,6 +66,7 @@ type actionItem struct {
 	fn        func(int, bool) error
 	permanent bool
 	status    guard.Status
+	nixos     bool
 }
 
 func (a actionItem) Title() string       { return a.label }
