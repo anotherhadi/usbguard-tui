@@ -25,7 +25,7 @@
         src = ./.;
         outputs = ["out"];
 
-        vendorHash = "sha256-NfmNdQaISob3ZguQnwgfXHUDUFION988ucp18q996pM=";
+        vendorHash = "sha256-tXMeJy9IpXTRhikYedcL+76H9X3In9mb1/KnN1XFPu4=";
 
         meta = with pkgs.lib; {
           description = "A terminal UI for managing USB devices via usbguard.";

@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/anotherhadi/ilovetui"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
@@ -57,12 +58,11 @@ func New() Model {
 
 	l.Styles = list.DefaultStyles(true)
 	filterStyles := textinput.DefaultStyles(true)
-	filterStyles.Focused.Prompt = filterStyles.Focused.Prompt.Foreground(colorAccent)
-	filterStyles.Blurred.Prompt = filterStyles.Blurred.Prompt.Foreground(colorAccent)
+	filterStyles.Focused.Prompt = filterStyles.Focused.Prompt.Foreground(ilovetui.S.Primary)
+	filterStyles.Blurred.Prompt = filterStyles.Blurred.Prompt.Foreground(ilovetui.S.Primary)
 	l.Styles.Filter = filterStyles
 
-	h := help.New()
-	h.Styles = help.DefaultStyles(true)
+	h := ilovetui.NewHelp()
 
 	rulesManaged := guard.IsRulesManaged()
 	notice := ""
@@ -303,11 +303,11 @@ func (m Model) renderActionSelect() string {
 	innerW := m.actionListInnerWidth()
 
 	title := popupTitleStyle.Foreground(color).Width(innerW).Render(dev.Name)
-	hint := lipgloss.NewStyle().Foreground(colorMuted).Width(innerW).Render("↑↓ navigate  enter confirm  esc cancel")
+	hint := lipgloss.NewStyle().Foreground(ilovetui.S.Muted).Width(innerW).Render("↑↓ navigate  enter confirm  esc cancel")
 
 	parts := []string{title, m.actionList.View(), ""}
 	if m.rulesManaged {
-		nixosHint := lipgloss.NewStyle().Foreground(colorMuted).Width(innerW).Render("[NixOS: perm rules printed on exit]")
+		nixosHint := lipgloss.NewStyle().Foreground(ilovetui.S.Muted).Width(innerW).Render("[NixOS: perm rules printed on exit]")
 		parts = append(parts, nixosHint)
 	}
 	parts = append(parts, hint)

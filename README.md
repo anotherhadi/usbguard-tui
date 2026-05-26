@@ -19,6 +19,8 @@ USBGuard is a software framework for implementing a USB device authorization pol
 
 Built with [bubbletea](https://github.com/charmbracelet/bubbletea) & Golang!
 
+Colors and styles can be customized using [ilovetui](https://github.com/anotherhadi/ilovetui), which applies theme changes across all compatible TUI applications at once.
+
 ## Features
 
 - List all connected USB devices with their current status (allowed, blocked, rejected)

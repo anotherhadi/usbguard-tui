@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/anotherhadi/ilovetui"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
@@ -30,25 +31,25 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 	clr, ok := colorMap[dev.Status]
 	if !ok {
-		clr = colorMuted
+		clr = ilovetui.S.Muted
 	}
 
 	var nameStyle, descStyle lipgloss.Style
 	if selected {
 		nameStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(colorAccent).
+			BorderForeground(ilovetui.S.Primary).
 			Foreground(clr).
 			Bold(true).
 			PaddingLeft(1)
 		descStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(colorAccent).
-			Foreground(colorMuted).
+			BorderForeground(ilovetui.S.Primary).
+			Foreground(ilovetui.S.Muted).
 			PaddingLeft(1)
 	} else {
 		nameStyle = lipgloss.NewStyle().Foreground(clr).PaddingLeft(2)
-		descStyle = lipgloss.NewStyle().Foreground(colorMuted).PaddingLeft(2)
+		descStyle = lipgloss.NewStyle().Foreground(ilovetui.S.Muted).PaddingLeft(2)
 	}
 
 	permIndicator := "○ tmp"
@@ -87,7 +88,7 @@ func (d actionDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	if index == m.Index() {
 		clr, ok := statusColorsSelected[a.status]
 		if !ok {
-			clr = colorAccent
+			clr = ilovetui.S.Primary
 		}
 		fmt.Fprintf(w, "  %s", lipgloss.NewStyle().Bold(true).Foreground(clr).Render("> "+a.label))
 	} else {
