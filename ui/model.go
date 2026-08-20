@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/anotherhadi/ilovetui/app"
 	"github.com/anotherhadi/ilovetui/bubbles"
 	"github.com/anotherhadi/ilovetui/helpbar"
 	"github.com/anotherhadi/ilovetui/modal"
@@ -41,8 +42,6 @@ type deviceSummary struct {
 type Model struct {
 	list          list.Model
 	help          helpbar.Model
-	modals        modal.Model
-	notif         notification.Model
 	daemonStatus  string
 	defaultPolicy guard.Status
 	deviceCounts  deviceSummary
@@ -52,6 +51,8 @@ type Model struct {
 	rulesWritable bool
 	pendingRules  []pendingRule
 	fatalShown    bool
+
+	ModalOpen bool
 }
 
 func New() Model {
@@ -76,8 +77,6 @@ func New() Model {
 	return Model{
 		list:          l,
 		help:          h,
-		modals:        modal.New(),
-		notif:         notification.New(),
 		rulesManaged:  rulesManaged,
 		rulesWritable: rulesWritable,
 	}
@@ -117,21 +116,10 @@ func makeActionList(rulesManaged bool) list.Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy, tickCmd(), m.modals.Init(), m.notif.Init())
+	return tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy, tickCmd(), app.SetTitle("USBGuard TUI"))
 }
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	next, cmd := m.updateMain(msg)
-	nm := next.(Model)
-
-	var modalCmd, notifCmd tea.Cmd
-	nm.modals, modalCmd = nm.modals.Update(msg)
-	nm.notif, notifCmd = nm.notif.Update(msg)
-
-	return nm, tea.Batch(cmd, modalCmd, notifCmd)
-}
-
-func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -200,13 +188,13 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, fetchDevices
 
 	case tea.KeyPressMsg:
-		if m.modals.Open() {
+		if m.ModalOpen {
 			return m, nil
 		}
 		return m.updateList(msg)
 
 	case tea.MouseWheelMsg:
-		if m.modals.Open() {
+		if m.ModalOpen {
 			return m, nil
 		}
 		switch msg.Button {
@@ -218,7 +206,7 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.modals.Open() {
+	if m.ModalOpen {
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -226,15 +214,15 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateList(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
-		return m, tea.Quit
+		return m, app.Quit()
 	}
 	if !m.list.SettingFilter() {
 		dev, hasSelection := m.selectedDevice()
 		switch {
 		case key.Matches(msg, listKeys.Quit):
-			return m, tea.Quit
+			return m, app.Quit()
 		case key.Matches(msg, listKeys.Refresh):
 			return m, tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy)
 		case key.Matches(msg, listKeys.Help):
@@ -274,24 +262,11 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) View() tea.View {
-	return tea.View{
-		Content:     m.renderContent(),
-		AltScreen:   true,
-		WindowTitle: "USBGuard TUI",
-		MouseMode:   tea.MouseModeCellMotion,
-	}
-}
-
-func (m Model) renderContent() string {
+func (m Model) View() string {
 	header := m.renderHeader()
 	listView := strings.TrimRight(m.list.View(), "\n")
 	helpView := strings.TrimRight(m.help.View(), "\n")
-	bg := strings.Join([]string{header, listView, helpView}, "\n")
-
-	bg = m.modals.Render(bg)
-	bg = m.notif.Render(bg)
-	return bg
+	return strings.Join([]string{header, listView, helpView}, "\n")
 }
 
 func (m Model) renderHeader() string {

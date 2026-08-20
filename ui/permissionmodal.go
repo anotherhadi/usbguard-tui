@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/anotherhadi/ilovetui/app"
 	"github.com/anotherhadi/ilovetui/modal"
 	"github.com/anotherhadi/ilovetui/style"
 )
@@ -25,7 +26,7 @@ func (permissionModal) Init() tea.Cmd { return nil }
 func (m permissionModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tea.KeyPressMsg, tea.MouseClickMsg:
-		return m, tea.Quit
+		return m, app.Quit()
 	}
 	return m, nil
 }
@@ -35,8 +36,7 @@ func (permissionModal) View() tea.View {
 	hintStyle := lipgloss.NewStyle().Foreground(style.S.Muted)
 
 	parts := []string{
-		textStyle.Render("Can't reach the usbguard daemon"),
-		textStyle.Render("(permission denied)."),
+		textStyle.Render("Can't reach the usbguard daemon (permission denied)."),
 		textStyle.Render("Join the usbguard group, or use sudo."),
 		hintStyle.Render("press any key to quit"),
 	}
