@@ -7,9 +7,15 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/anotherhadi/ilovetui"
+	"github.com/anotherhadi/ilovetui/style"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
+
+var ruleStateIndicators = map[guard.RuleState]string{
+	guard.RulePermanent: "● perm",
+	guard.RuleTemporary: "○ tmp",
+	guard.RuleDefault:   "· default",
+}
 
 type deviceDelegate struct{}
 
@@ -31,34 +37,37 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	}
 	clr, ok := colorMap[dev.Status]
 	if !ok {
-		clr = ilovetui.S.Muted
+		clr = style.S.Muted
 	}
 
 	var nameStyle, descStyle lipgloss.Style
 	if selected {
 		nameStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(ilovetui.S.Primary).
+			BorderForeground(style.S.Primary).
 			Foreground(clr).
 			Bold(true).
 			PaddingLeft(1)
 		descStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(ilovetui.S.Primary).
-			Foreground(ilovetui.S.Muted).
+			BorderForeground(style.S.Primary).
+			Foreground(style.S.Muted).
 			PaddingLeft(1)
 	} else {
 		nameStyle = lipgloss.NewStyle().Foreground(clr).PaddingLeft(2)
-		descStyle = lipgloss.NewStyle().Foreground(ilovetui.S.Muted).PaddingLeft(2)
+		descStyle = lipgloss.NewStyle().Foreground(style.S.Muted).PaddingLeft(2)
 	}
 
-	permIndicator := "○ tmp"
-	if dev.Permanent {
-		permIndicator = "● perm"
+	name := dev.Name
+	if icon := deviceIcon(dev.Name); icon != "" {
+		name = icon + " " + name
 	}
+
+	permIndicator := ruleStateIndicators[dev.RuleState]
+	width := m.Width()
 	fmt.Fprintf(w, "%s\n%s",
-		nameStyle.Render(dev.Name),
-		descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s  %s", dev.ID, dev.VidPid, string(dev.Status), permIndicator)),
+		clampToWidth(nameStyle.Render(name), width),
+		clampToWidth(descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s  %s", dev.ID, dev.VidPid, string(dev.Status), permIndicator)), width),
 	)
 }
 
@@ -88,7 +97,7 @@ func (d actionDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	if index == m.Index() {
 		clr, ok := statusColorsSelected[a.status]
 		if !ok {
-			clr = ilovetui.S.Primary
+			clr = style.S.Primary
 		}
 		fmt.Fprintf(w, "  %s", lipgloss.NewStyle().Bold(true).Foreground(clr).Render("> "+a.label))
 	} else {

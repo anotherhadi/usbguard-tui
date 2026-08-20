@@ -23,12 +23,12 @@ Colors and styles can be customized using [ilovetui](https://github.com/anotherh
 
 ## Features
 
-- List all connected USB devices with their current status (allowed, blocked, rejected)
+- List all connected USB devices with their current status
 - Allow, block, or reject devices: temporarily or permanently
-- Action popup with mouse support for quick device management
+- Action popup for quick device management
 - Filter devices by name with `/`
 - Auto-refresh
-- Keyboard shortcuts for all actions (`a`/`A`, `b`/`B`, `e`/`E`)
+- Keyboard shortcuts for all actions (`a`/`A`, `b`/`B`, `e`/`E`, ...)
 
 ## Requirements
 

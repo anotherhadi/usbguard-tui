@@ -15,21 +15,27 @@ const (
 	Rejected Status = "reject"
 )
 
+type RuleState string
+
+const (
+	RuleDefault   RuleState = "default"
+	RuleTemporary RuleState = "temporary"
+	RulePermanent RuleState = "permanent"
+)
+
 type Device struct {
 	ID        int
 	Name      string
 	Status    Status
 	VidPid    string
 	Hash      string
-	Permanent bool
+	RuleState RuleState
 }
 
 func (d Device) Title() string       { return d.Name }
 func (d Device) Description() string { return fmt.Sprintf("id:%-3d  %s", d.ID, d.VidPid) }
 func (d Device) FilterValue() string { return d.Name + " " + d.VidPid }
 
-// parseLine parses a line from "usbguard list-devices":
-// 1: allow id 04b3:301b serial "" name "USB Hub" hash "..." via-port "usb1"
 func parseLine(line string) (Device, error) {
 	colonIdx := strings.Index(line, ":")
 	if colonIdx < 0 {

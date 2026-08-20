@@ -4,39 +4,37 @@ import (
 	"image/color"
 
 	"charm.land/lipgloss/v2"
-	"github.com/anotherhadi/ilovetui"
+	"github.com/anotherhadi/ilovetui/style"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
 var statusColors = map[guard.Status]color.Color{
-	guard.Allowed:  ilovetui.S.Success,
-	guard.Blocked:  ilovetui.S.Error,
-	guard.Rejected: ilovetui.S.Warning,
+	guard.Allowed:  style.S.Success,
+	guard.Blocked:  style.S.Error,
+	guard.Rejected: style.S.Warning,
 }
 
 var statusColorsSelected = map[guard.Status]color.Color{
-	guard.Allowed:  ilovetui.S.Success,
-	guard.Blocked:  ilovetui.S.Error,
-	guard.Rejected: ilovetui.S.Warning,
+	guard.Allowed:  style.S.Success,
+	guard.Blocked:  style.S.Error,
+	guard.Rejected: style.S.Warning,
 }
 
 var (
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ilovetui.S.Primary).
+			Foreground(style.S.Primary).
 			PaddingLeft(1)
 
-	daemonActiveStyle = lipgloss.NewStyle().Foreground(ilovetui.S.Success)
-	daemonOtherStyle  = lipgloss.NewStyle().Foreground(ilovetui.S.Muted)
+	daemonActiveStyle = lipgloss.NewStyle().Foreground(style.S.Success)
+	daemonOtherStyle  = lipgloss.NewStyle().Foreground(style.S.Muted)
 
-	mutedStyle = lipgloss.NewStyle().Foreground(ilovetui.S.Muted)
+	mutedStyle = lipgloss.NewStyle().Foreground(style.S.Muted)
 
-	popupStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(ilovetui.S.Primary).
-			Padding(1, 3)
+	infoLabelStyle = lipgloss.NewStyle().
+			Foreground(style.S.Muted).
+			PaddingLeft(1).
+			Width(16)
 
-	popupTitleStyle = lipgloss.NewStyle().Bold(true).MarginBottom(1)
-
-	warnStyle = lipgloss.NewStyle().Foreground(ilovetui.S.Warning)
+	warnStyle = lipgloss.NewStyle().Foreground(style.S.Warning)
 )

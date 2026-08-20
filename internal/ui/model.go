@@ -5,81 +5,77 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
-	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/anotherhadi/ilovetui"
+	"github.com/charmbracelet/x/ansi"
+
+	"github.com/anotherhadi/ilovetui/bubbles"
+	"github.com/anotherhadi/ilovetui/helpbar"
+	"github.com/anotherhadi/ilovetui/modal"
+	"github.com/anotherhadi/ilovetui/notification"
+	"github.com/anotherhadi/ilovetui/style"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
-type state int
-
-const (
-	stateList state = iota
-	statePopup
-)
-
 type (
-	tickMsg         time.Time
-	devicesMsg      []guard.Device
-	daemonStatusMsg string
-	actionMsg       struct{ err error }
-	nixRuleMsg      struct{ rule string }
+	tickMsg          time.Time
+	devicesMsg       []guard.Device
+	daemonStatusMsg  string
+	defaultPolicyMsg guard.Status
+	actionMsg        struct{ err error }
+	nixRuleMsg       struct{ rule string }
 )
+
+type deviceSummary struct {
+	total, allowed, blocked, rejected int
+}
 
 type Model struct {
-	state        state
-	list         list.Model
-	actionList   list.Model
-	help         help.Model
-	daemonStatus string
-	width        int
-	height       int
-	notice       string
-	selectedDev  *guard.Device
-	rulesManaged bool
-	pendingRules []string
+	list          list.Model
+	help          helpbar.Model
+	modals        modal.Model
+	notif         notification.Model
+	daemonStatus  string
+	defaultPolicy guard.Status
+	deviceCounts  deviceSummary
+	width         int
+	height        int
+	rulesManaged  bool
+	rulesWritable bool
+	pendingRules  []string
+	fatalShown    bool
 }
 
 func (m Model) PendingRules() []string { return m.pendingRules }
 
 func New() Model {
-	l := list.New(nil, deviceDelegate{}, 0, 0)
+	l := bubbles.NewList(nil, 0, 0)
+	l.SetDelegate(deviceDelegate{})
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
-	l.SetShowStatusBar(true)
+	l.SetShowStatusBar(false)
 	l.SetShowTitle(false)
 	l.DisableQuitKeybindings()
 	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up"))
 	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down"))
 
-	l.Styles = list.DefaultStyles(true)
-	filterStyles := textinput.DefaultStyles(true)
-	filterStyles.Focused.Prompt = filterStyles.Focused.Prompt.Foreground(ilovetui.S.Primary)
-	filterStyles.Blurred.Prompt = filterStyles.Blurred.Prompt.Foreground(ilovetui.S.Primary)
-	l.Styles.Filter = filterStyles
-
-	h := ilovetui.NewHelp()
+	h := helpbar.New(
+		helpbar.WithToggle(listKeys.Help),
+		helpbar.WithGlobal(listKeys.globalBindings()...),
+	)
 
 	rulesManaged := guard.IsRulesManaged()
-	notice := ""
-	if rulesManaged {
-		notice = "Rules managed by NixOS config: permanent actions will print NixOS rules on exit."
-		listKeys.AllowPerm.SetEnabled(false)
-		listKeys.BlockPerm.SetEnabled(false)
-		listKeys.RejectPerm.SetEnabled(false)
-	}
+	rulesWritable, _ := guard.RulesWritable()
 
 	return Model{
-		state:        stateList,
-		list:         l,
-		actionList:   makeActionList(rulesManaged),
-		help:         h,
-		rulesManaged: rulesManaged,
-		notice:       notice,
+		list:          l,
+		help:          h,
+		modals:        modal.New(),
+		notif:         notification.New(),
+		rulesManaged:  rulesManaged,
+		rulesWritable: rulesWritable,
 	}
 }
 
@@ -104,20 +100,34 @@ func makeActionList(rulesManaged bool) list.Model {
 			actionItem{"reject (permanent)", guard.RejectDevice, true, guard.Rejected, false},
 		}
 	}
-	l := list.New(items, actionDelegate{}, 24, len(items))
+	l := bubbles.NewList(items, 24, len(items))
 	l.SetShowHelp(false)
 	l.SetShowTitle(false)
 	l.SetShowStatusBar(false)
+	l.SetShowPagination(false)
 	l.DisableQuitKeybindings()
 	l.SetFilteringEnabled(false)
+
+	l.SetDelegate(actionDelegate{})
 	return l
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(fetchDevices, fetchDaemonStatus, tickCmd())
+	return tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy, tickCmd(), m.modals.Init(), m.notif.Init())
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.updateMain(msg)
+	nm := next.(Model)
+
+	var modalCmd, notifCmd tea.Cmd
+	nm.modals, modalCmd = nm.modals.Update(msg)
+	nm.notif, notifCmd = nm.notif.Update(msg)
+
+	return nm, tea.Batch(cmd, modalCmd, notifCmd)
+}
+
+func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -125,17 +135,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.help.SetWidth(msg.Width)
 		m.list.SetSize(msg.Width, m.listHeight())
-		m.updateActionListSize()
 		return m, nil
 
 	case tickMsg:
-		return m, tea.Batch(fetchDevices, fetchDaemonStatus, tickCmd())
+		return m, tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy, tickCmd())
 
 	case devicesMsg:
 		items := make([]list.Item, len(msg))
+		summary := deviceSummary{total: len(msg)}
 		for i, d := range msg {
 			items[i] = d
+			switch d.Status {
+			case guard.Allowed:
+				summary.allowed++
+			case guard.Blocked:
+				summary.blocked++
+			case guard.Rejected:
+				summary.rejected++
+			}
 		}
+		m.deviceCounts = summary
 		cmd := m.list.SetItems(items)
 		return m, cmd
 
@@ -143,59 +162,55 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.daemonStatus = string(msg)
 		return m, nil
 
+	case defaultPolicyMsg:
+		m.defaultPolicy = guard.Status(msg)
+		return m, nil
+
 	case nixRuleMsg:
-		m.state = stateList
-		m.selectedDev = nil
 		m.pendingRules = append(m.pendingRules, msg.rule)
-		count := len(m.pendingRules)
-		if count == 1 {
-			m.notice = "1 NixOS rule queued (printed on exit)"
-		} else {
-			m.notice = fmt.Sprintf("%d NixOS rules queued (printed on exit)", count)
-		}
 		return m, nil
 
 	case actionMsg:
-		m.state = stateList
-		m.selectedDev = nil
 		if msg.err != nil {
-			switch msg.err {
-			case guard.ErrReadOnly:
-				m.notice = "Rules file is not writable: permanent changes are not supported."
-			case guard.ErrPermission:
-				m.notice = "Permission denied. Run with appropriate privileges."
-			default:
-				m.notice = msg.err.Error()
+
+			if msg.err == guard.ErrPermission {
+
+				if m.fatalShown {
+					return m, nil
+				}
+				m.fatalShown = true
+				return m, modal.Show("Permission Error", newPermissionModal(),
+					modal.WithModalStyle(permissionModalStyle()))
 			}
-		} else {
-			m.notice = m.defaultNotice()
+			return m, errorToast(msg.err)
 		}
 		return m, fetchDevices
 
 	case tea.KeyPressMsg:
-		if m.state == statePopup {
-			return m.updatePopup(msg)
+		if m.modals.Open() {
+			return m, nil
 		}
 		return m.updateList(msg)
 
-	case tea.MouseClickMsg:
-		if m.state == statePopup {
-			var cmd tea.Cmd
-			m.actionList, cmd = m.actionList.Update(msg)
-			return m, cmd
-		}
-
 	case tea.MouseWheelMsg:
-		return m.updateMouseWheel(msg)
+		if m.modals.Open() {
+			return m, nil
+		}
+		switch msg.Button {
+		case tea.MouseWheelUp:
+			m.list.CursorUp()
+		case tea.MouseWheelDown:
+			m.list.CursorDown()
+		}
+		return m, nil
 	}
 
-	if m.state == stateList {
-		var cmd tea.Cmd
-		m.list, cmd = m.list.Update(msg)
-		return m, cmd
+	if m.modals.Open() {
+		return m, nil
 	}
-
-	return m, nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
 }
 
 func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -203,56 +218,39 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	if !m.list.SettingFilter() {
-		id := m.selectedDevID()
+		dev, hasSelection := m.selectedDevice()
 		switch {
 		case key.Matches(msg, listKeys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, listKeys.Refresh):
-			m.notice = m.defaultNotice()
-			return m, tea.Batch(fetchDevices, fetchDaemonStatus)
+			return m, tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy)
 		case key.Matches(msg, listKeys.Help):
 			m.help.ShowAll = !m.help.ShowAll
 			m.list.SetSize(m.width, m.listHeight())
 			return m, nil
 		case key.Matches(msg, listKeys.Open):
-			if item := m.list.SelectedItem(); item != nil {
-				d := item.(guard.Device)
-				m.selectedDev = &d
-				m.updateActionListSize()
-				m.actionList.Select(0)
-				m.state = statePopup
-				return m, nil
+			if hasSelection {
+				return m, modal.Show(dev.Name, newActionModal(dev, m.rulesManaged),
+					modal.WithModalStyle(actionModalStyle(dev.Status)))
 			}
+		case key.Matches(msg, listKeys.AllowAll):
+			return m, doBulkAction(m.visibleDeviceIDs(), guard.AllowDevice, false)
+		case key.Matches(msg, listKeys.AllowAllPerm):
+			if m.rulesManaged {
+				return m, queueNixOSRules(m.visibleDevices(), guard.Allowed)
+			}
+			return m, doBulkAction(m.visibleDeviceIDs(), guard.AllowDevice, true)
+		case key.Matches(msg, listKeys.PrintAll):
+			return m, queueCurrentStateRules(m.visibleDevices())
 		}
-		if id >= 0 {
-			if cmd := m.deviceActionCmd(msg, id); cmd != nil {
+		if hasSelection {
+			if cmd := m.deviceActionCmd(msg, dev); cmd != nil {
 				return m, cmd
 			}
 		}
 	}
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
-	return m, cmd
-}
-
-func (m Model) updatePopup(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch {
-	case key.Matches(msg, cancelKey):
-		m.state = stateList
-		m.selectedDev = nil
-		return m, nil
-	case key.Matches(msg, listKeys.Open):
-		if item := m.actionList.SelectedItem(); item != nil {
-			a := item.(actionItem)
-			if a.nixos && m.selectedDev != nil {
-				rule := guard.NixOSRule(*m.selectedDev, a.status)
-				return m, func() tea.Msg { return nixRuleMsg{rule: rule} }
-			}
-			return m, doAction(m.selectedDev.ID, a.fn, a.permanent)
-		}
-	}
-	var cmd tea.Cmd
-	m.actionList, cmd = m.actionList.Update(msg)
 	return m, cmd
 }
 
@@ -267,115 +265,140 @@ func (m Model) View() tea.View {
 
 func (m Model) renderContent() string {
 	header := m.renderHeader()
-	notice := m.renderNotice()
 	listView := strings.TrimRight(m.list.View(), "\n")
-	helpView := strings.TrimRight(m.help.View(listKeys), "\n")
-	bg := strings.Join([]string{header, listView, notice, helpView}, "\n")
+	helpView := strings.TrimRight(m.help.View(), "\n")
+	bg := strings.Join([]string{header, listView, helpView}, "\n")
 
-	if m.state == statePopup && m.selectedDev != nil {
-		return placeOverlay(bg, m.renderActionSelect(), m.width, m.height)
-	}
+	bg = m.modals.Render(bg)
+	bg = m.notif.Render(bg)
 	return bg
 }
 
 func (m Model) renderHeader() string {
 	title := headerStyle.Render("USBGuard-tui")
+	lines := []string{
+		title,
+		m.renderServiceLine(),
+		m.renderPolicyLine(),
+		m.renderDevicesLine(),
+		m.renderRulesLine(),
+	}
+	if pending := m.renderPendingRulesLine(); pending != "" {
+		lines = append(lines, pending)
+	}
+
+	for i, l := range lines {
+		lines[i] = clampToWidth(l, m.width)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func clampToWidth(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	return ansi.Truncate(s, width, "…")
+}
+
+func (m Model) renderServiceLine() string {
+	label := infoLabelStyle.Render("Service")
 	switch m.daemonStatus {
 	case "active":
-		return title + mutedStyle.Render(" - ") + daemonActiveStyle.Render("active")
+		return label + daemonActiveStyle.Render("active")
 	case "":
-		return title
+		return label + mutedStyle.Render("checking...")
 	default:
-		return title + mutedStyle.Render(" - ") + daemonOtherStyle.Render(m.daemonStatus)
+		return label + daemonOtherStyle.Render(m.daemonStatus)
 	}
 }
 
-func (m Model) renderNotice() string {
-	if m.notice == "" {
+func (m Model) renderPolicyLine() string {
+	label := infoLabelStyle.Render("Default policy")
+	if m.defaultPolicy == "" {
+		return label + mutedStyle.Render("unknown")
+	}
+	clr, ok := statusColors[m.defaultPolicy]
+	if !ok {
+		clr = style.S.Muted
+	}
+	return label + lipgloss.NewStyle().Foreground(clr).Render(string(m.defaultPolicy))
+}
+
+func (m Model) renderDevicesLine() string {
+	label := infoLabelStyle.Render("Devices")
+	if m.deviceCounts.total == 0 {
+		return label + mutedStyle.Render("0")
+	}
+	parts := []string{mutedStyle.Render(fmt.Sprintf("%d total", m.deviceCounts.total))}
+	if m.deviceCounts.allowed > 0 {
+		parts = append(parts, lipgloss.NewStyle().Foreground(statusColors[guard.Allowed]).
+			Render(fmt.Sprintf("%d allow", m.deviceCounts.allowed)))
+	}
+	if m.deviceCounts.blocked > 0 {
+		parts = append(parts, lipgloss.NewStyle().Foreground(statusColors[guard.Blocked]).
+			Render(fmt.Sprintf("%d block", m.deviceCounts.blocked)))
+	}
+	if m.deviceCounts.rejected > 0 {
+		parts = append(parts, lipgloss.NewStyle().Foreground(statusColors[guard.Rejected]).
+			Render(fmt.Sprintf("%d reject", m.deviceCounts.rejected)))
+	}
+	return label + strings.Join(parts, mutedStyle.Render("  ·  "))
+}
+
+func (m Model) renderRulesLine() string {
+	label := infoLabelStyle.Render("Rules")
+	switch {
+	case m.rulesManaged:
+		return label + warnStyle.Render("read-only (NixOS managed)")
+	case !m.rulesWritable:
+		return label + warnStyle.Render("read-only")
+	default:
+		return label + daemonActiveStyle.Render("writable")
+	}
+}
+
+func (m Model) renderPendingRulesLine() string {
+	count := len(m.pendingRules)
+	if count == 0 {
 		return ""
 	}
-	return warnStyle.Render(m.notice)
-}
-
-func (m Model) renderActionSelect() string {
-	dev := m.selectedDev
-	color := statusColors[dev.Status]
-	innerW := m.actionListInnerWidth()
-
-	title := popupTitleStyle.Foreground(color).Width(innerW).Render(dev.Name)
-	hint := lipgloss.NewStyle().Foreground(ilovetui.S.Muted).Width(innerW).Render("↑↓ navigate  enter confirm  esc cancel")
-
-	parts := []string{title, m.actionList.View(), ""}
-	if m.rulesManaged {
-		nixosHint := lipgloss.NewStyle().Foreground(ilovetui.S.Muted).Width(innerW).Render("[NixOS: perm rules printed on exit]")
-		parts = append(parts, nixosHint)
+	noun := "rule"
+	if count > 1 {
+		noun = "rules"
 	}
-	parts = append(parts, hint)
-	return popupStyle.Width(innerW).Render(strings.Join(parts, "\n"))
-}
-
-func (m Model) popupOuterWidth() int {
-	w := m.width - 6
-	if w > 60 {
-		w = 60
-	}
-	if w < 32 {
-		w = 32
-	}
-	return w
-}
-
-func (m Model) actionListInnerWidth() int {
-	return m.popupOuterWidth() - 8 // border(2) + padding_h(6)
-}
-
-func (m Model) defaultNotice() string {
-	if m.rulesManaged {
-		return "Rules managed by NixOS config: permanent actions will print NixOS rules on exit."
-	}
-	return ""
-}
-
-func (m Model) actionItemCount() int {
-	return 6
-}
-
-// updateActionListSize sizes the action list and toggles pagination based on available space.
-// When there is enough room for all items: pagination is hidden and height is set exactly,
-// avoiding the phantom line that bubbles/list reserves when showPagination=true.
-// When space is limited: pagination is shown naturally by bubbles/list.
-func (m *Model) updateActionListSize() {
-	items := m.actionItemCount()
-	innerW := m.actionListInnerWidth()
-	// popup overhead: border(2) + padding_v(2) + title(1) + blank(1) + hint(1) = 7; +1 for NixOS footer
-	overhead := 7
-	if m.rulesManaged {
-		overhead = 8
-	}
-	available := m.height - overhead - 2 // 2 lines margin
-	if available >= items {
-		m.actionList.SetShowPagination(false)
-		m.actionList.SetSize(innerW, items)
-	} else {
-		m.actionList.SetShowPagination(true)
-		h := available
-		if h < 2 {
-			h = 2
-		}
-		m.actionList.SetSize(innerW, h)
-	}
+	label := infoLabelStyle.Render("Pending rules")
+	return label + warnStyle.Render(fmt.Sprintf("%d %s queued (printed on exit)", count, noun))
 }
 
 func (m Model) listHeight() int {
-	helpH := lipgloss.Height(strings.TrimRight(m.help.View(listKeys), "\n"))
-	return m.height - 1 - helpH - 1 // header - help - notice
+	headerH := lipgloss.Height(m.renderHeader())
+	helpH := m.help.Height()
+	return m.height - headerH - helpH
 }
 
-func (m Model) selectedDevID() int {
+func (m Model) selectedDevice() (guard.Device, bool) {
 	if item := m.list.SelectedItem(); item != nil {
-		return item.(guard.Device).ID
+		return item.(guard.Device), true
 	}
-	return -1
+	return guard.Device{}, false
+}
+
+func (m Model) visibleDevices() []guard.Device {
+	items := m.list.VisibleItems()
+	devices := make([]guard.Device, len(items))
+	for i, item := range items {
+		devices[i] = item.(guard.Device)
+	}
+	return devices
+}
+
+func (m Model) visibleDeviceIDs() []int {
+	items := m.list.VisibleItems()
+	ids := make([]int, len(items))
+	for i, item := range items {
+		ids[i] = item.(guard.Device).ID
+	}
+	return ids
 }
 
 func tickCmd() tea.Cmd {
@@ -396,51 +419,78 @@ func fetchDaemonStatus() tea.Msg {
 	return daemonStatusMsg(guard.DaemonStatus())
 }
 
+func fetchDefaultPolicy() tea.Msg {
+	return defaultPolicyMsg(guard.DefaultPolicy())
+}
+
+func errorToast(err error) tea.Cmd {
+	msg := err.Error()
+	if err == guard.ErrReadOnly {
+		msg = "Rules file is not writable: permanent changes are not supported."
+	}
+	return notification.Show("Error", msg, notification.Error, notification.WithID("action-error"))
+}
+
 func doAction(id int, fn func(int, bool) error, permanent bool) tea.Cmd {
 	return func() tea.Msg {
 		return actionMsg{err: fn(id, permanent)}
 	}
 }
 
+func doBulkAction(ids []int, fn func(int, bool) error, permanent bool) tea.Cmd {
+	return func() tea.Msg {
+		for _, id := range ids {
+			if err := fn(id, permanent); err != nil {
+				return actionMsg{err: err}
+			}
+		}
+		return actionMsg{}
+	}
+}
+
+func queueNixOSRules(devices []guard.Device, status guard.Status) tea.Cmd {
+	cmds := make([]tea.Cmd, len(devices))
+	for i, d := range devices {
+		rule := guard.NixOSRule(d, status)
+		cmds[i] = func() tea.Msg { return nixRuleMsg{rule: rule} }
+	}
+	return tea.Batch(cmds...)
+}
+
+func queueCurrentStateRules(devices []guard.Device) tea.Cmd {
+	cmds := make([]tea.Cmd, len(devices))
+	for i, d := range devices {
+		rule := guard.NixOSRule(d, d.Status)
+		cmds[i] = func() tea.Msg { return nixRuleMsg{rule: rule} }
+	}
+	return tea.Batch(cmds...)
+}
+
 type actionBinding struct {
-	binding       key.Binding
-	fn            func(int, bool) error
-	perm          bool
-	needsWritable bool
+	binding key.Binding
+	fn      func(int, bool) error
+	perm    bool
+	status  guard.Status
 }
 
 var deviceActionBindings = []actionBinding{
-	{listKeys.Allow, guard.AllowDevice, false, false},
-	{listKeys.AllowPerm, guard.AllowDevice, true, true},
-	{listKeys.Block, guard.BlockDevice, false, false},
-	{listKeys.BlockPerm, guard.BlockDevice, true, true},
-	{listKeys.Reject, guard.RejectDevice, false, false},
-	{listKeys.RejectPerm, guard.RejectDevice, true, true},
+	{listKeys.Allow, guard.AllowDevice, false, guard.Allowed},
+	{listKeys.AllowPerm, guard.AllowDevice, true, guard.Allowed},
+	{listKeys.Block, guard.BlockDevice, false, guard.Blocked},
+	{listKeys.BlockPerm, guard.BlockDevice, true, guard.Blocked},
+	{listKeys.Reject, guard.RejectDevice, false, guard.Rejected},
+	{listKeys.RejectPerm, guard.RejectDevice, true, guard.Rejected},
 }
 
-func (m Model) deviceActionCmd(msg tea.KeyPressMsg, id int) tea.Cmd {
+func (m Model) deviceActionCmd(msg tea.KeyPressMsg, dev guard.Device) tea.Cmd {
 	for _, b := range deviceActionBindings {
-		if (!b.needsWritable || !m.rulesManaged) && key.Matches(msg, b.binding) {
-			return doAction(id, b.fn, b.perm)
+		if !key.Matches(msg, b.binding) {
+			continue
 		}
+		if b.perm && m.rulesManaged {
+			return queueNixOSRules([]guard.Device{dev}, b.status)
+		}
+		return doAction(dev.ID, b.fn, b.perm)
 	}
 	return nil
-}
-
-func (m Model) updateMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
-	switch msg.Button {
-	case tea.MouseWheelUp:
-		if m.state == statePopup {
-			m.actionList.CursorUp()
-		} else {
-			m.list.CursorUp()
-		}
-	case tea.MouseWheelDown:
-		if m.state == statePopup {
-			m.actionList.CursorDown()
-		} else {
-			m.list.CursorDown()
-		}
-	}
-	return m, nil
 }

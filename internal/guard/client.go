@@ -21,37 +21,115 @@ func ListDevices() ([]Device, error) {
 	if err != nil {
 		return nil, wrapExecError(err)
 	}
-	rules := listRules()
+
+	deviceRuleText := devicePolicyRuleText()
+
+	permanentTexts, havePermanentTexts := permanentRuleTexts()
+
+	implicitTarget, haveImplicitTarget := implicitPolicyTarget()
+
 	var devices []Device
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if line == "" {
 			continue
 		}
 		d, err := parseLine(line)
-		if err == nil {
-			d.Permanent = rules[d.Hash] == d.Status
-			devices = append(devices, d)
+		if err != nil {
+			continue
 		}
+		d.RuleState = resolveRuleState(d, deviceRuleText, permanentTexts, havePermanentTexts, implicitTarget, haveImplicitTarget)
+		devices = append(devices, d)
 	}
 	return devices, nil
 }
 
-func listRules() map[string]Status {
-	out, err := exec.Command("usbguard", "list-rules").Output()
+func resolveRuleState(d Device, deviceRuleText map[int]string, permanentTexts map[string]bool, havePermanentTexts bool, implicitTarget Status, haveImplicitTarget bool) RuleState {
+	text, matched := deviceRuleText[d.ID]
+	if matched {
+		if !havePermanentTexts {
+
+			return RulePermanent
+		}
+		if permanentTexts[text] {
+			return RulePermanent
+		}
+		return RuleTemporary
+	}
+
+	if !haveImplicitTarget || d.Status != implicitTarget {
+		return RuleTemporary
+	}
+	return RuleDefault
+}
+
+func implicitPolicyTarget() (Status, bool) {
+	out, err := exec.Command("usbguard", "get-parameter", "ImplicitPolicyTarget").Output()
+	if err != nil {
+		return "", false
+	}
+	return Status(strings.TrimSpace(string(out))), true
+}
+
+func DefaultPolicy() Status {
+	target, _ := implicitPolicyTarget()
+	return target
+}
+
+func devicePolicyRuleText() map[int]string {
+	out, err := exec.Command("usbguard", "list-rules", "-d").Output()
 	if err != nil {
 		return nil
 	}
-	rules := make(map[string]Status)
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	result := make(map[int]string)
+	var currentRuleText string
+	for _, line := range strings.Split(string(out), "\n") {
 		if line == "" {
 			continue
 		}
-		d, err := parseLine(line)
-		if err == nil && d.Hash != "" {
-			rules[d.Hash] = d.Status
+		if line[0] == ' ' || line[0] == '\t' {
+			trimmed := strings.TrimLeft(line, " \t")
+			colonIdx := strings.Index(trimmed, ":")
+			if colonIdx < 0 {
+				continue
+			}
+			devID, err := strconv.Atoi(strings.TrimSpace(trimmed[:colonIdx]))
+			if err != nil {
+				continue
+			}
+			result[devID] = currentRuleText
+			continue
 		}
+		colonIdx := strings.Index(line, ":")
+		if colonIdx < 0 {
+			continue
+		}
+		currentRuleText = normalizeRuleText(line[colonIdx+1:])
 	}
-	return rules
+	return result
+}
+
+func permanentRuleTexts() (map[string]bool, bool) {
+	path := ruleFilePath()
+	if path == "" {
+		return nil, false
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	texts := make(map[string]bool)
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		texts[normalizeRuleText(line)] = true
+	}
+	return texts, true
+}
+
+func normalizeRuleText(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 func AllowDevice(id int, permanent bool) error  { return applyPolicy("allow-device", id, permanent) }
@@ -88,16 +166,32 @@ func wrapExecError(err error) error {
 }
 
 func IsRulesManaged() bool {
+	return strings.HasPrefix(ruleFilePath(), "/nix/store/")
+}
+
+func RulesWritable() (bool, bool) {
+	path := ruleFilePath()
+	if path == "" {
+		return false, false
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		return false, true
+	}
+	f.Close()
+	return true, true
+}
+
+func ruleFilePath() string {
 	out, err := exec.Command("systemctl", "cat", "usbguard").Output()
 	if err != nil {
-		return false
+		return ""
 	}
 	configPath := extractConfigPath(string(out))
 	if configPath == "" {
-		return false
+		return ""
 	}
-	ruleFile := parseRuleFilePath(configPath)
-	return strings.HasPrefix(ruleFile, "/nix/store/")
+	return parseRuleFilePath(configPath)
 }
 
 func extractConfigPath(s string) string {
@@ -126,7 +220,8 @@ func parseRuleFilePath(configPath string) string {
 func classifyError(output string) error {
 	lower := strings.ToLower(output)
 	switch {
-	case strings.Contains(lower, "permission denied"), strings.Contains(lower, "not authorized"):
+	case strings.Contains(lower, "permission denied"), strings.Contains(lower, "not authorized"),
+		strings.Contains(lower, "operation not permitted"):
 		return ErrPermission
 	case strings.Contains(lower, "read-only"), strings.Contains(lower, "immutable"):
 		return ErrReadOnly
