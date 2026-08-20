@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,8 +26,13 @@ type (
 	daemonStatusMsg  string
 	defaultPolicyMsg guard.Status
 	actionMsg        struct{ err error }
-	nixRuleMsg       struct{ rule string }
+	nixRuleMsg       struct{ key, rule string }
 )
+
+type pendingRule struct {
+	key  string
+	rule string
+}
 
 type deviceSummary struct {
 	total, allowed, blocked, rejected int
@@ -44,11 +50,17 @@ type Model struct {
 	height        int
 	rulesManaged  bool
 	rulesWritable bool
-	pendingRules  []string
+	pendingRules  []pendingRule
 	fatalShown    bool
 }
 
-func (m Model) PendingRules() []string { return m.pendingRules }
+func (m Model) PendingRules() []string {
+	rules := make([]string, len(m.pendingRules))
+	for i, r := range m.pendingRules {
+		rules[i] = r.rule
+	}
+	return rules
+}
 
 func New() Model {
 	l := bubbles.NewList(nil, 0, 0)
@@ -134,7 +146,7 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.help.SetWidth(msg.Width)
-		m.list.SetSize(msg.Width, m.listHeight())
+		m.resizeList()
 		return m, nil
 
 	case tickMsg:
@@ -156,6 +168,7 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.deviceCounts = summary
 		cmd := m.list.SetItems(items)
+		m.resizeList()
 		return m, cmd
 
 	case daemonStatusMsg:
@@ -167,7 +180,15 @@ func (m Model) updateMain(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case nixRuleMsg:
-		m.pendingRules = append(m.pendingRules, msg.rule)
+		hadPending := len(m.pendingRules) > 0
+		if i := slices.IndexFunc(m.pendingRules, func(r pendingRule) bool { return r.key == msg.key }); i >= 0 {
+			m.pendingRules[i].rule = msg.rule
+		} else {
+			m.pendingRules = append(m.pendingRules, pendingRule{key: msg.key, rule: msg.rule})
+		}
+		if !hadPending {
+			m.resizeList()
+		}
 		return m, nil
 
 	case actionMsg:
@@ -226,7 +247,7 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy)
 		case key.Matches(msg, listKeys.Help):
 			m.help.ShowAll = !m.help.ShowAll
-			m.list.SetSize(m.width, m.listHeight())
+			m.resizeList()
 			return m, nil
 		case key.Matches(msg, listKeys.Open):
 			if hasSelection {
@@ -275,9 +296,13 @@ func (m Model) renderContent() string {
 }
 
 func (m Model) renderHeader() string {
-	title := headerStyle.Render("USBGuard-tui")
+	title := headerStyle.Render("USBGuard TUI")
+	if style.S.NerdFonts {
+		title = "󱊟 " + title
+	}
 	lines := []string{
 		title,
+		"",
 		m.renderServiceLine(),
 		m.renderPolicyLine(),
 		m.renderDevicesLine(),
@@ -376,6 +401,11 @@ func (m Model) listHeight() int {
 	return m.height - headerH - helpH
 }
 
+func (m *Model) resizeList() {
+	m.list.SetSize(m.width, m.listHeight())
+	m.list.SetSize(m.width, m.listHeight())
+}
+
 func (m Model) selectedDevice() (guard.Device, bool) {
 	if item := m.list.SelectedItem(); item != nil {
 		return item.(guard.Device), true
@@ -451,8 +481,9 @@ func doBulkAction(ids []int, fn func(int, bool) error, permanent bool) tea.Cmd {
 func queueNixOSRules(devices []guard.Device, status guard.Status) tea.Cmd {
 	cmds := make([]tea.Cmd, len(devices))
 	for i, d := range devices {
+		key := d.VidPid
 		rule := guard.NixOSRule(d, status)
-		cmds[i] = func() tea.Msg { return nixRuleMsg{rule: rule} }
+		cmds[i] = func() tea.Msg { return nixRuleMsg{key: key, rule: rule} }
 	}
 	return tea.Batch(cmds...)
 }
@@ -460,8 +491,9 @@ func queueNixOSRules(devices []guard.Device, status guard.Status) tea.Cmd {
 func queueCurrentStateRules(devices []guard.Device) tea.Cmd {
 	cmds := make([]tea.Cmd, len(devices))
 	for i, d := range devices {
+		key := d.VidPid
 		rule := guard.NixOSRule(d, d.Status)
-		cmds[i] = func() tea.Msg { return nixRuleMsg{rule: rule} }
+		cmds[i] = func() tea.Msg { return nixRuleMsg{key: key, rule: rule} }
 	}
 	return tea.Batch(cmds...)
 }
