@@ -37,6 +37,12 @@ func (k listKeyMap) globalBindings() []key.Binding {
 	}
 }
 
+func (k listKeyMap) shortHelpBindings() []key.Binding {
+	return []key.Binding{
+		k.Open, k.Allow, k.Block, k.Reject, k.Filter, k.Quit,
+	}
+}
+
 var listKeys = listKeyMap{
 	Open:    key.NewBinding(key.WithKeys("enter", "tab"), key.WithHelp("enter/tab", "select action")),
 	Filter:  key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),

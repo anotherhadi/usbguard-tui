@@ -68,7 +68,6 @@ func New() Model {
 
 	h := helpbar.New(
 		helpbar.WithToggle(listKeys.Help),
-		helpbar.WithGlobal(listKeys.globalBindings()...),
 	)
 
 	rulesManaged := guard.IsRulesManaged()
@@ -265,8 +264,15 @@ func (m Model) updateList(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 func (m Model) View() string {
 	header := m.renderHeader()
 	listView := strings.TrimRight(m.list.View(), "\n")
-	helpView := strings.TrimRight(m.help.View(), "\n")
+	helpView := strings.TrimRight(m.help.View(m.helpBindings()...), "\n")
 	return strings.Join([]string{header, listView, helpView}, "\n")
+}
+
+func (m Model) helpBindings() []key.Binding {
+	if m.help.ShowAll {
+		return listKeys.globalBindings()
+	}
+	return listKeys.shortHelpBindings()
 }
 
 func (m Model) renderHeader() string {
@@ -371,7 +377,7 @@ func (m Model) renderPendingRulesLine() string {
 
 func (m Model) listHeight() int {
 	headerH := lipgloss.Height(m.renderHeader())
-	helpH := m.help.Height()
+	helpH := m.help.Height(m.helpBindings()...)
 	return m.height - headerH - helpH
 }
 
