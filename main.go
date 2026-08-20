@@ -23,19 +23,8 @@ func main() {
 	}
 
 	p := tea.NewProgram(ui.New())
-	m, err := p.Run()
-	if err != nil {
+	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
-	}
-	if fm, ok := m.(ui.Model); ok {
-		if rules := fm.PendingRules(); len(rules) > 0 {
-			fmt.Println("# Add to your NixOS configuration:")
-			fmt.Println("services.usbguard.rules = lib.mkAfter ''")
-			for _, rule := range rules {
-				fmt.Println(" ", rule)
-			}
-			fmt.Println("'';")
-		}
 	}
 }

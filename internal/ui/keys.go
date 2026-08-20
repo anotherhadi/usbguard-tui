@@ -18,7 +18,7 @@ type listKeyMap struct {
 
 	AllowAll     key.Binding
 	AllowAllPerm key.Binding
-	PrintAll     key.Binding
+	CopyRules    key.Binding
 
 	Up        key.Binding
 	Down      key.Binding
@@ -32,7 +32,7 @@ func (k listKeyMap) globalBindings() []key.Binding {
 	return []key.Binding{
 		k.Open, k.Filter, k.Refresh, k.Quit,
 		k.Allow, k.AllowPerm, k.Block, k.BlockPerm, k.Reject, k.RejectPerm,
-		k.AllowAll, k.AllowAllPerm, k.PrintAll,
+		k.AllowAll, k.AllowAllPerm, k.CopyRules,
 		k.Up, k.Down, k.GoToStart, k.GoToEnd, k.PrevPage, k.NextPage,
 	}
 }
@@ -52,7 +52,7 @@ var listKeys = listKeyMap{
 	RejectPerm:   key.NewBinding(key.WithKeys("E"), key.WithHelp("E", "reject (perm)")),
 	AllowAll:     key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "allow all")),
 	AllowAllPerm: key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "allow all (perm)")),
-	PrintAll:     key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "print all rules")),
+	CopyRules:    key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy rules")),
 
 	Up:        key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 	Down:      key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),

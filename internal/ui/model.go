@@ -54,14 +54,6 @@ type Model struct {
 	fatalShown    bool
 }
 
-func (m Model) PendingRules() []string {
-	rules := make([]string, len(m.pendingRules))
-	for i, r := range m.pendingRules {
-		rules[i] = r.rule
-	}
-	return rules
-}
-
 func New() Model {
 	l := bubbles.NewList(nil, 0, 0)
 	l.SetDelegate(deviceDelegate{})
@@ -261,8 +253,15 @@ func (m Model) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 				return m, queueNixOSRules(m.visibleDevices(), guard.Allowed)
 			}
 			return m, doBulkAction(m.visibleDeviceIDs(), guard.AllowDevice, true)
-		case key.Matches(msg, listKeys.PrintAll):
-			return m, queueCurrentStateRules(m.visibleDevices())
+		case key.Matches(msg, listKeys.CopyRules):
+			toCopy := m.pendingRules
+			if len(toCopy) == 0 {
+				toCopy = mergeCurrentStateRules(nil, m.visibleDevices())
+			}
+			cmd := copyRulesCmd(toCopy, m.rulesManaged)
+			m.pendingRules = nil
+			m.resizeList()
+			return m, cmd
 		}
 		if hasSelection {
 			if cmd := m.deviceActionCmd(msg, dev); cmd != nil {
@@ -392,7 +391,7 @@ func (m Model) renderPendingRulesLine() string {
 		noun = "rules"
 	}
 	label := infoLabelStyle.Render("Pending rules")
-	return label + warnStyle.Render(fmt.Sprintf("%d %s queued (printed on exit)", count, noun))
+	return label + warnStyle.Render(fmt.Sprintf("%d %s queued (press %s to copy)", count, noun, listKeys.CopyRules.Help().Key))
 }
 
 func (m Model) listHeight() int {
@@ -488,14 +487,51 @@ func queueNixOSRules(devices []guard.Device, status guard.Status) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func queueCurrentStateRules(devices []guard.Device) tea.Cmd {
-	cmds := make([]tea.Cmd, len(devices))
-	for i, d := range devices {
+func mergeCurrentStateRules(pending []pendingRule, devices []guard.Device) []pendingRule {
+	for _, d := range devices {
 		key := d.VidPid
 		rule := guard.NixOSRule(d, d.Status)
-		cmds[i] = func() tea.Msg { return nixRuleMsg{key: key, rule: rule} }
+		if i := slices.IndexFunc(pending, func(r pendingRule) bool { return r.key == key }); i >= 0 {
+			pending[i].rule = rule
+		} else {
+			pending = append(pending, pendingRule{key: key, rule: rule})
+		}
 	}
-	return tea.Batch(cmds...)
+	return pending
+}
+
+func copyRulesCmd(pending []pendingRule, nixos bool) tea.Cmd {
+	if len(pending) == 0 {
+		return notification.Show("Copy rules", "No rules to copy.", notification.Warning)
+	}
+	rules := make([]string, len(pending))
+	for i, r := range pending {
+		rules[i] = r.rule
+	}
+	text := formatRulesForClipboard(rules, nixos)
+	noun := "rule"
+	if len(rules) > 1 {
+		noun = "rules"
+	}
+	msg := fmt.Sprintf("%d %s copied to clipboard.", len(rules), noun)
+	return tea.Batch(
+		tea.SetClipboard(text),
+		notification.Show("Copy rules", msg, notification.Success),
+	)
+}
+
+func formatRulesForClipboard(rules []string, nixos bool) string {
+	if !nixos {
+		return strings.Join(rules, "\n")
+	}
+	var b strings.Builder
+	b.WriteString("# Add to your NixOS configuration:\n")
+	b.WriteString("services.usbguard.rules = lib.mkAfter ''\n")
+	for _, r := range rules {
+		b.WriteString("  " + r + "\n")
+	}
+	b.WriteString("'';")
+	return b.String()
 }
 
 type actionBinding struct {

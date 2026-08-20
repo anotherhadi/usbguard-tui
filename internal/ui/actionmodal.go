@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -50,7 +51,8 @@ func (a actionModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			it := item.(actionItem)
 			if it.nixos {
 				rule := guard.NixOSRule(a.dev, it.status)
-				return a, tea.Batch(modal.Close(), func() tea.Msg { return nixRuleMsg{rule: rule} })
+				key := a.dev.VidPid
+				return a, tea.Batch(modal.Close(), func() tea.Msg { return nixRuleMsg{key: key, rule: rule} })
 			}
 			return a, tea.Batch(modal.Close(), doAction(a.dev.ID, it.fn, it.permanent))
 		}
@@ -74,7 +76,7 @@ func (a actionModal) View() tea.View {
 	hintStyle := lipgloss.NewStyle().Foreground(style.S.Muted)
 	parts := []string{a.list.View(), ""}
 	if a.rulesManaged {
-		parts = append(parts, hintStyle.Render("[NixOS: perm rules printed on exit]"))
+		parts = append(parts, hintStyle.Render(fmt.Sprintf("[NixOS: perm rules queued — press %s to copy]", listKeys.CopyRules.Help().Key)))
 	}
 	parts = append(parts, hintStyle.Render("↑↓ navigate  enter confirm  esc cancel"))
 	return tea.NewView(strings.Join(parts, "\n"))
