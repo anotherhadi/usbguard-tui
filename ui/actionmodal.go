@@ -8,6 +8,8 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	zone "github.com/lrstanley/bubblezone/v2"
+
 	"github.com/anotherhadi/ilovetui/modal"
 	"github.com/anotherhadi/ilovetui/style"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
@@ -37,6 +39,15 @@ func actionModalStyle(status guard.Status) modal.Styles {
 
 func (a actionModal) Init() tea.Cmd { return nil }
 
+func (a actionModal) confirmCmd(it actionItem) tea.Cmd {
+	if it.nixos {
+		rule := guard.NixOSRule(a.dev, it.status)
+		key := a.dev.VidPid
+		return tea.Batch(modal.Close(), func() tea.Msg { return nixRuleMsg{key: key, rule: rule} })
+	}
+	return tea.Batch(modal.Close(), doAction(a.dev.ID, it.fn, it.permanent))
+}
+
 func (a actionModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -48,13 +59,7 @@ func (a actionModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if item == nil {
 				return a, nil
 			}
-			it := item.(actionItem)
-			if it.nixos {
-				rule := guard.NixOSRule(a.dev, it.status)
-				key := a.dev.VidPid
-				return a, tea.Batch(modal.Close(), func() tea.Msg { return nixRuleMsg{key: key, rule: rule} })
-			}
-			return a, tea.Batch(modal.Close(), doAction(a.dev.ID, it.fn, it.permanent))
+			return a, a.confirmCmd(item.(actionItem))
 		}
 
 	case tea.MouseWheelMsg:
@@ -63,6 +68,18 @@ func (a actionModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.list.CursorUp()
 		case tea.MouseWheelDown:
 			a.list.CursorDown()
+		}
+		return a, nil
+
+	case tea.MouseClickMsg:
+		if msg.Mouse().Button != tea.MouseLeft {
+			return a, nil
+		}
+		for i, item := range a.list.VisibleItems() {
+			if zone.Get(actionZoneID(i)).InBounds(msg) {
+				a.list.Select(i)
+				return a, a.confirmCmd(item.(actionItem))
+			}
 		}
 		return a, nil
 	}

@@ -3,13 +3,22 @@ package ui
 import (
 	"fmt"
 	"io"
+	"strconv"
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	zone "github.com/lrstanley/bubblezone/v2"
+
 	"github.com/anotherhadi/ilovetui/style"
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
+
+// deviceZoneID returns the bubblezone marker ID used to detect mouse clicks
+// on a given device's row in the list.
+func deviceZoneID(dev guard.Device) string {
+	return "device-" + strconv.Itoa(dev.ID)
+}
 
 var ruleStateIndicators = map[guard.RuleState]string{
 	guard.RulePermanent: "● perm",
@@ -65,10 +74,9 @@ func (d deviceDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 
 	permIndicator := ruleStateIndicators[dev.RuleState]
 	width := m.Width()
-	fmt.Fprintf(w, "%s\n%s",
-		clampToWidth(nameStyle.Render(name), width),
-		clampToWidth(descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s  %s", dev.ID, dev.VidPid, string(dev.Status), permIndicator)), width),
-	)
+	line1 := clampToWidth(nameStyle.Render(name), width)
+	line2 := clampToWidth(descStyle.Render(fmt.Sprintf("id:%-3d  %s  %s  %s", dev.ID, dev.VidPid, string(dev.Status), permIndicator)), width)
+	fmt.Fprint(w, zone.Mark(deviceZoneID(dev), line1+"\n"+line2))
 }
 
 type actionItem struct {
@@ -89,18 +97,26 @@ func (d actionDelegate) Height() int                             { return 1 }
 func (d actionDelegate) Spacing() int                            { return 0 }
 func (d actionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
+// actionZoneID returns the bubblezone marker ID used to detect mouse clicks
+// on a given row of the action modal's list.
+func actionZoneID(index int) string {
+	return "action-" + strconv.Itoa(index)
+}
+
 func (d actionDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	a, ok := item.(actionItem)
 	if !ok {
 		return
 	}
+	var content string
 	if index == m.Index() {
 		clr, ok := statusColorsSelected[a.status]
 		if !ok {
 			clr = style.S.Primary
 		}
-		fmt.Fprintf(w, "  %s", lipgloss.NewStyle().Bold(true).Foreground(clr).Render("> "+a.label))
+		content = fmt.Sprintf("  %s", lipgloss.NewStyle().Bold(true).Foreground(clr).Render("> "+a.label))
 	} else {
-		fmt.Fprintf(w, "    %s", a.label)
+		content = fmt.Sprintf("    %s", a.label)
 	}
+	fmt.Fprint(w, zone.Mark(actionZoneID(index), content))
 }

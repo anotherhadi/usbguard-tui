@@ -36,5 +36,9 @@ var (
 			PaddingLeft(1).
 			Width(16)
 
+	filterLabelStyle = lipgloss.NewStyle().
+				Foreground(style.S.Muted).
+				PaddingLeft(1)
+
 	warnStyle = lipgloss.NewStyle().Foreground(style.S.Warning)
 )

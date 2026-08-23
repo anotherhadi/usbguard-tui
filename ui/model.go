@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	zone "github.com/lrstanley/bubblezone/v2"
 
 	"github.com/anotherhadi/ilovetui/app"
 	"github.com/anotherhadi/ilovetui/bubbles"
@@ -41,6 +42,7 @@ type deviceSummary struct {
 
 type Model struct {
 	list          list.Model
+	devices       []guard.Device
 	help          helpbar.Model
 	daemonStatus  string
 	defaultPolicy guard.Status
@@ -64,6 +66,10 @@ func New() Model {
 	l.DisableQuitKeybindings()
 	l.KeyMap.CursorUp = key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up"))
 	l.KeyMap.CursorDown = key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down"))
+	l.Styles.TitleBar = l.Styles.TitleBar.PaddingLeft(1)
+	l.Styles.Filter.Focused.Prompt = l.Styles.Filter.Focused.Prompt.Foreground(style.S.Muted)
+	l.Styles.Filter.Blurred.Prompt = l.Styles.Filter.Blurred.Prompt.Foreground(style.S.Muted)
+	l.FilterInput.SetStyles(l.Styles.Filter)
 
 	h := helpbar.New(
 		helpbar.WithToggle(listKeys.Help),
@@ -131,10 +137,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, tea.Batch(fetchDevices, fetchDaemonStatus, fetchDefaultPolicy, tickCmd())
 
 	case devicesMsg:
-		items := make([]list.Item, len(msg))
 		summary := deviceSummary{total: len(msg)}
-		for i, d := range msg {
-			items[i] = d
+		for _, d := range msg {
 			switch d.Status {
 			case guard.Allowed:
 				summary.allowed++
@@ -145,6 +149,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 		}
 		m.deviceCounts = summary
+		if slices.Equal(m.devices, msg) {
+			return m, nil
+		}
+		m.devices = msg
+		items := make([]list.Item, len(msg))
+		for i, d := range msg {
+			items[i] = d
+		}
 		cmd := m.list.SetItems(items)
 		m.resizeList()
 		return m, cmd
@@ -190,6 +202,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.list.CursorUp()
 		case tea.MouseWheelDown:
 			m.list.CursorDown()
+		}
+		return m, nil
+
+	case tea.MouseClickMsg:
+		if m.ModalOpen || msg.Mouse().Button != tea.MouseLeft {
+			return m, nil
+		}
+		for i, item := range m.list.VisibleItems() {
+			dev := item.(guard.Device)
+			if zone.Get(deviceZoneID(dev)).InBounds(msg) {
+				alreadyFocused := i == m.list.Index()
+				m.list.Select(i)
+				if alreadyFocused {
+					return m, modal.Show(dev.Name, newActionModal(dev, m.rulesManaged),
+						modal.WithModalStyle(actionModalStyle(dev.Status)))
+				}
+				return m, nil
+			}
 		}
 		return m, nil
 	}
@@ -245,8 +275,12 @@ func (m Model) updateList(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 			}
 		}
 	}
+	prevFilterState := m.list.FilterState()
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
+	if m.list.FilterState() != prevFilterState {
+		m.resizeList()
+	}
 	return m, cmd
 }
 
@@ -254,7 +288,19 @@ func (m Model) View() string {
 	header := m.renderHeader()
 	listView := strings.TrimRight(m.list.View(), "\n")
 	helpView := strings.TrimRight(m.help.View(m.helpBindings()...), "\n")
-	return strings.Join([]string{header, listView, helpView}, "\n")
+	lines := []string{header}
+	if filterLine := m.renderFilterLine(); filterLine != "" {
+		lines = append(lines, filterLine)
+	}
+	lines = append(lines, listView, helpView)
+	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderFilterLine() string {
+	if m.list.FilterState() != list.FilterApplied {
+		return ""
+	}
+	return filterLabelStyle.Render("Filter: ") + m.list.FilterValue()
 }
 
 func (m Model) helpBindings() []key.Binding {
@@ -367,7 +413,11 @@ func (m Model) renderPendingRulesLine() string {
 func (m Model) listHeight() int {
 	headerH := lipgloss.Height(m.renderHeader())
 	helpH := m.help.Height(m.helpBindings()...)
-	return m.height - headerH - helpH
+	h := m.height - headerH - helpH
+	if m.list.FilterState() == list.FilterApplied {
+		h--
+	}
+	return h
 }
 
 func (m *Model) resizeList() {
