@@ -14,7 +14,7 @@
       (system: f system (import nixpkgs {inherit system;}));
 
     pname = "usbguard-tui";
-    version = "1.2.0";
+    version = "1.3.0";
 
     ldflags = ["-s" "-w" "-X main.version=${version}"];
   in {
@@ -25,12 +25,12 @@
         src = ./.;
         outputs = ["out"];
 
-        vendorHash = "sha256-8QP2FbNmvqrJhFe3Ia7tPhkxMeFWBhvr4Zr9kpV9bR4=";
+        vendorHash = "sha256-O9DG0pxRKt8VwpZdyvoQ4wsfEbsh5npmwocmtcm2IfA=";
 
         meta = with pkgs.lib; {
           description = "A terminal UI for managing USB devices via usbguard.";
           homepage = "https://github.com/anotherhadi/usbguard-tui";
-          platforms = platforms.unix;
+          platforms = platforms.linux;
         };
       };
     in {
