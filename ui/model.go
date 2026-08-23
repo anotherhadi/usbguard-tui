@@ -50,7 +50,6 @@ type Model struct {
 	rulesManaged  bool
 	rulesWritable bool
 	pendingRules  []pendingRule
-	fatalShown    bool
 
 	ModalOpen bool
 }
@@ -172,16 +171,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case actionMsg:
 		if msg.err != nil {
-
-			if msg.err == guard.ErrPermission {
-
-				if m.fatalShown {
-					return m, nil
-				}
-				m.fatalShown = true
-				return m, modal.Show("Permission Error", newPermissionModal(),
-					modal.WithModalStyle(permissionModalStyle()))
-			}
 			return m, errorToast(msg.err)
 		}
 		return m, fetchDevices

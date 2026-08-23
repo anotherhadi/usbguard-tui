@@ -21,6 +21,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if _, err := guard.ListDevices(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
 	p := tea.NewProgram(newApp())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
