@@ -14,8 +14,6 @@ import (
 	"github.com/anotherhadi/usbguard-tui/internal/guard"
 )
 
-// deviceZoneID returns the bubblezone marker ID used to detect mouse clicks
-// on a given device's row in the list.
 func deviceZoneID(dev guard.Device) string {
 	return "device-" + strconv.Itoa(dev.ID)
 }
@@ -97,8 +95,6 @@ func (d actionDelegate) Height() int                             { return 1 }
 func (d actionDelegate) Spacing() int                            { return 0 }
 func (d actionDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
-// actionZoneID returns the bubblezone marker ID used to detect mouse clicks
-// on a given row of the action modal's list.
 func actionZoneID(index int) string {
 	return "action-" + strconv.Itoa(index)
 }

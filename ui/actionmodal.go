@@ -93,7 +93,7 @@ func (a actionModal) View() tea.View {
 	hintStyle := lipgloss.NewStyle().Foreground(style.S.Muted)
 	parts := []string{a.list.View(), ""}
 	if a.rulesManaged {
-		parts = append(parts, hintStyle.Render(fmt.Sprintf("[NixOS: perm rules queued — press %s to copy]", listKeys.CopyRules.Help().Key)))
+		parts = append(parts, hintStyle.Render(fmt.Sprintf("[NixOS: perm rules queued, press %s to copy]", listKeys.CopyRules.Help().Key)))
 	}
 	parts = append(parts, hintStyle.Render("↑↓ navigate  enter confirm  esc cancel"))
 	return tea.NewView(strings.Join(parts, "\n"))
