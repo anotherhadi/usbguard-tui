@@ -6,6 +6,7 @@ before:
 
 builds:
   - binary: usbguard-tui
+    main: ./cmd/usbguard-tui
     goos:
       - linux
     goarch:
