@@ -2,6 +2,7 @@ package main
 
 import (
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/anotherhadi/ilovetui/app"
 	"github.com/anotherhadi/ilovetui/modal"
 	"github.com/anotherhadi/ilovetui/notification"
@@ -9,9 +10,10 @@ import (
 )
 
 type appModel struct {
-	core   ui.Model
-	modals modal.Model
-	notif  notification.Model
+	core          ui.Model
+	modals        modal.Model
+	notif         notification.Model
+	width, height int
 }
 
 func newApp() appModel {
@@ -30,6 +32,9 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, ok := msg.(app.QuitMsg); ok {
 		return a, tea.Quit
 	}
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		a.width, a.height = sizeMsg.Width, sizeMsg.Height
+	}
 
 	a.core.ModalOpen = a.modals.Open()
 	var coreCmd tea.Cmd
@@ -43,7 +48,7 @@ func (a appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a appModel) View() tea.View {
-	bg := a.core.View()
+	bg := lipgloss.Place(a.width, a.height, lipgloss.Left, lipgloss.Top, a.core.View())
 	bg = a.modals.Render(bg)
 	bg = a.notif.Render(bg)
 	return tea.View{
