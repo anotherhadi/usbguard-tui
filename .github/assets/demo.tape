@@ -1,8 +1,8 @@
-Output ./assets/demo.gif
+Output .github/assets/demo.gif
 Require usbguard-tui
 
 Set Shell "zsh"
-Set FontSize 32
+Set FontSize 26
 Set Width 1500
 Set Height 1000
 
