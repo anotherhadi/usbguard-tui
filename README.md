@@ -62,25 +62,12 @@ go build -o usbguard-tui ./cmd/usbguard-tui
 </details>
 
 <details>
-<summary>Nix run</summary>
+<summary>NUR (Nix/NixOS)</summary>
+
+Available via [NUR](https://github.com/nix-community/NUR), under the `anotherhadi` repo:
 
 ```sh
-nix run github:anotherhadi/usbguard-tui
-```
-
-</details>
-
-<details>
-<summary>NixOS: system installation</summary>
-
-Add the flake input and include the package in your configuration:
-
-```nix
-# flake.nix
-inputs.usbguard-tui.url = "github:anotherhadi/usbguard-tui";
-
-# configuration.nix / home.nix
-environment.systemPackages = [ inputs.usbguard-tui.packages.${system}.default ];
+environment.systemPackages = [ nur.repos.anotherhadi.default-creds-tui ];
 ```
 
 </details>
