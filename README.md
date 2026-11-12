@@ -67,7 +67,7 @@ go build -o usbguard-tui ./cmd/usbguard-tui
 Available via [NUR](https://github.com/nix-community/NUR), under the `anotherhadi` repo:
 
 ```sh
-environment.systemPackages = [ nur.repos.anotherhadi.default-creds-tui ];
+environment.systemPackages = [ nur.repos.anotherhadi.usbguard-tui ];
 ```
 
 </details>
@@ -84,6 +84,5 @@ The device list refreshes automatically every 2 seconds.
 
 <div align="center">
   <a href="https://github.com/anotherhadi/usbguard-tui">github</a> |
-  <a href="https://gitlab.com/anotherhadi_mirror/usbguard-tui">gitlab (mirror)</a> |
   <a href="https://git.hadi.icu/anotherhadi/usbguard-tui">gitea (mirror)</a>
 </div>
