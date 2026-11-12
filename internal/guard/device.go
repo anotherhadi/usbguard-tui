@@ -32,10 +32,6 @@ type Device struct {
 	RuleState RuleState
 }
 
-func (d Device) Title() string       { return d.Name }
-func (d Device) Description() string { return fmt.Sprintf("id:%-3d  %s", d.ID, d.VidPid) }
-func (d Device) FilterValue() string { return d.Name + " " + d.VidPid }
-
 func parseLine(line string) (Device, error) {
 	colonIdx := strings.Index(line, ":")
 	if colonIdx < 0 {
@@ -82,8 +78,15 @@ func extractField(rule, field string) string {
 	return rest[:end]
 }
 
+// NixOSRule matches the exact physical device, not just its model: VID:PID
+// and name alone are shared by every unit of that model, so without the
+// device's hash (usbguard's per-descriptor fingerprint) the rule would allow
+// any device of the same make, not just this one.
 func NixOSRule(dev Device, status Status) string {
-	return fmt.Sprintf("%s id %s name \"%s\"", status, dev.VidPid, dev.Name)
+	if dev.Hash == "" {
+		return fmt.Sprintf("%s id %s name %q", status, dev.VidPid, dev.Name)
+	}
+	return fmt.Sprintf("%s id %s hash %q name %q", status, dev.VidPid, dev.Hash, dev.Name)
 }
 
 func extractUnquoted(rule, field string) string {

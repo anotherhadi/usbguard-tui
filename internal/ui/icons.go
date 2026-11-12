@@ -3,23 +3,23 @@ package ui
 import (
 	"strings"
 
-	"github.com/anotherhadi/ilovetui/style"
+	"github.com/anotherhadi/foam/theme"
 )
 
 const (
-	iconUSB       = " "
-	iconKeyboard  = ""
-	iconPointer   = ""
-	iconCamera    = ""
-	iconStorage   = ""
-	iconAudio     = ""
-	iconBluetooth = ""
-	iconNetwork   = ""
-	iconPrint     = ""
-	iconHub       = ""
-	iconPhone     = ""
-	iconGamepad   = ""
-	iconSecurity  = ""
+	iconUSB       = " "
+	iconKeyboard  = ""
+	iconPointer   = ""
+	iconCamera    = ""
+	iconStorage   = ""
+	iconAudio     = ""
+	iconBluetooth = ""
+	iconNetwork   = ""
+	iconPrint     = ""
+	iconHub       = ""
+	iconPhone     = ""
+	iconGamepad   = ""
+	iconSecurity  = ""
 )
 
 type deviceIconCategory struct {
@@ -43,7 +43,7 @@ var deviceIconCategories = []deviceIconCategory{
 }
 
 func deviceIcon(name string) string {
-	if !style.S.NerdFonts {
+	if !theme.NerdFonts() {
 		return ""
 	}
 	lower := strings.ToLower(name)

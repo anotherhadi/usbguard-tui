@@ -1,0 +1,36 @@
+# usbguard-tui defaults: the reference for every setting.
+#
+# Do not copy this file: put only what you change in one of these (later wins):
+#
+#   ~/.config/foam/config.yaml          shared by every foam tool (theme, keys)
+#   ~/.config/usbguard-tui/config.yaml  usbguard-tui
+#   USBGUARD_TUI_* environment variables
+#   command-line flags
+
+refresh: 2s # how often the device list, daemon status and default policy are polled
+
+# By command ID: a key, a list, or [] for none (palette only). foam's own: list, help, palette.
+keys:
+  app:
+    quit: [q, ctrl+c]
+    help: "?"
+    palette: ctrl+p
+    refresh: r
+  device:
+    open: [enter, tab]
+    filter: /
+    clear-filter: ctrl+g
+    allow: a
+    allow-perm: A
+    block: b
+    block-perm: B
+    reject: e
+    reject-perm: E
+    allow-all: w
+    allow-all-perm: W
+    copy-rules: y
+  actions:
+    close: [esc, q, ctrl+c]
+    pick: enter
+    up: [up, k, ctrl+p]
+    down: [down, j, ctrl+n]
