@@ -33,12 +33,18 @@ func newDeviceList() *deviceList {
 }
 
 func (m *deviceList) SetDevices(devs []guard.Device) {
+	// Capture the selection before m.all changes: m.shown still indexes the old slice.
+	sel, ok := m.Selected()
 	m.all = devs
-	m.refilter()
+	m.refilterKeeping(sel, ok)
 }
 
 func (m *deviceList) refilter() {
 	sel, ok := m.Selected()
+	m.refilterKeeping(sel, ok)
+}
+
+func (m *deviceList) refilterKeeping(sel guard.Device, ok bool) {
 	texts := make([]string, len(m.all))
 	for i, d := range m.all {
 		texts[i] = d.Name + " " + d.VidPid + " " + string(d.Status)
@@ -60,7 +66,11 @@ func (m *deviceList) Selected() (guard.Device, bool) {
 	if len(m.shown) == 0 {
 		return guard.Device{}, false
 	}
-	return m.all[m.shown[m.list.Selected()]], true
+	i := m.list.Selected()
+	if i < 0 || i >= len(m.shown) || m.shown[i] >= len(m.all) {
+		return guard.Device{}, false
+	}
+	return m.all[m.shown[i]], true
 }
 
 // Shown ignores the filter. The slice belongs to the list: do not modify it.
